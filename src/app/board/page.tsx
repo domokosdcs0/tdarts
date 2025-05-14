@@ -1,0 +1,235 @@
+'use client';
+
+import { useState } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import * as z from "zod";
+import { toast } from "react-hot-toast";
+
+const validateSchema = z.object({
+  code: z.string().min(1, "A torna kód megadása kötelező"),
+  password: z.string().min(1, "A jelszó megadása kötelező"),
+});
+
+const boardSchema = z.object({
+  boardNumber: z.string().min(1, "Válassz egy táblát"),
+});
+
+type ValidateForm = z.infer<typeof validateSchema>;
+type BoardForm = z.infer<typeof boardSchema>;
+
+export default function BoardPage() {
+  const [tournamentId, setTournamentId] = useState<string | null>(null);
+  const [boardCount, setBoardCount] = useState<number>(0);
+  const [selectedBoard, setSelectedBoard] = useState<string | null>(null);
+  const [boardId, setBoardId] = useState<string | null>(null);
+  const [nextMatch, setNextMatch] = useState<any>(null);
+  const [isReady, setIsReady] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  const validateForm = useForm<ValidateForm>({
+    resolver: zodResolver(validateSchema),
+    defaultValues: { code: "", password: "" },
+  });
+
+  const boardForm = useForm<BoardForm>({
+    resolver: zodResolver(boardSchema),
+    defaultValues: { boardNumber: "" },
+  });
+
+  // Torna validáció
+  const handleValidate = async (data: ValidateForm) => {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/boards/validate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error || "Nem sikerült a validáció");
+      }
+      const { tournamentId, boardCount } = await res.json();
+      setTournamentId(tournamentId);
+      setBoardCount(boardCount);
+      toast.success("Torna sikeresen validálva");
+    } catch (error: any) {
+      toast.error(error.message || "Nem sikerült a validáció");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Tábla kiválasztása és következő mérkőzés lekérése
+  const handleBoardSelect = async (data: BoardForm) => {
+    setLoading(true);
+    try {
+      // Tábla ID lekérése
+      const boardRes = await fetch(`/api/boards?tournamentId=${tournamentId}&boardNumber=${data.boardNumber}`);
+      if (!boardRes.ok) {
+        const error = await boardRes.json();
+        throw new Error(error.error || "Nem sikerült a tábla lekérése");
+      }
+      const boardData = await boardRes.json();
+      setBoardId(boardData.boardId);
+      setSelectedBoard(data.boardNumber);
+
+      // Következő mérkőzés lekérése
+      const matchRes = await fetch(`/api/boards/${tournamentId}/${data.boardNumber}/next-match`);
+      if (!matchRes.ok) {
+        const error = await matchRes.json();
+        throw new Error(error.error || "Nem sikerült a mérkőzés lekérése");
+      }
+      const matchData = await matchRes.json();
+      setNextMatch(matchData);
+      toast.success("Tábla kiválasztva");
+    } catch (error: any) {
+      toast.error(error.message || "Nem sikerült a tábla kiválasztása");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Mérkőzés indítása
+  const handleReady = async () => {
+    if (!nextMatch?.matchId || !boardId) return;
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/matches/${nextMatch.matchId}/start`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ boardId }),
+      });
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error || "Nem sikerült a mérkőzés indítása");
+      }
+      setIsReady(true);
+      toast.success("Mérkőzés elindítva");
+    } catch (error: any) {
+      toast.error(error.message || "Nem sikerült a mérkőzés indítása");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Fullscreen kérés
+  const requestFullscreen = () => {
+    const element = document.documentElement;
+    if (element.requestFullscreen) {
+      element.requestFullscreen();
+    }
+  };
+
+  return (
+    <main className="min-h-screen w-full bg-base-200 flex items-center justify-center">
+      {!tournamentId ? (
+        <div className="card bg-base-100 shadow-xl p-6 w-full max-w-md">
+          <h1 className="text-2xl font-bold mb-4">Torna validáció</h1>
+          <form onSubmit={validateForm.handleSubmit(handleValidate)}>
+            <div className="form-control mb-4">
+              <label className="label">
+                <span className="label-text">Torna kód</span>
+              </label>
+              <input
+                type="text"
+                {...validateForm.register("code")}
+                className="input input-bordered w-full"
+                placeholder="Pl. ABC12345"
+              />
+              {validateForm.formState.errors.code && (
+                <span className="text-error text-sm">
+                  {validateForm.formState.errors.code.message}
+                </span>
+              )}
+            </div>
+            <div className="form-control mb-4">
+              <label className="label">
+                <span className="label-text">Jelszó</span>
+              </label>
+              <input
+                type="password"
+                {...validateForm.register("password")}
+                className="input input-bordered w-full"
+                placeholder="Torna jelszó"
+              />
+              {validateForm.formState.errors.password && (
+                <span className="text-error text-sm">
+                  {validateForm.formState.errors.password.message}
+                </span>
+              )}
+            </div>
+            <button type="submit" className="btn btn-primary w-full" disabled={loading}>
+              {loading ? <span className="loading loading-spinner"></span> : "Validálás"}
+            </button>
+          </form>
+        </div>
+      ) : !selectedBoard ? (
+        <div className="card bg-base-100 shadow-xl p-6 w-full max-w-md">
+          <h1 className="text-2xl font-bold mb-4">Tábla kiválasztása</h1>
+          <form onSubmit={boardForm.handleSubmit(handleBoardSelect)}>
+            <div className="form-control mb-4">
+              <label className="label">
+                <span className="label-text">Tábla száma</span>
+              </label>
+              <select
+                {...boardForm.register("boardNumber")}
+                className="select select-bordered w-full"
+              >
+                <option value="">Válassz táblát</option>
+                {Array.from({ length: boardCount }, (_, i) => i + 1).map((num) => (
+                  <option key={num} value={num}>
+                    Tábla {num}
+                  </option>
+                ))}
+              </select>
+              {boardForm.formState.errors.boardNumber && (
+                <span className="text-error text-sm">
+                  {boardForm.formState.errors.boardNumber.message}
+                </span>
+              )}
+            </div>
+            <button type="submit" className="btn btn-primary w-full" disabled={loading}>
+              {loading ? <span className="loading loading-spinner"></span> : "Kiválasztás"}
+            </button>
+          </form>
+        </div>
+      ) : (
+        <div className="w-full h-screen flex flex-col items-center justify-center bg-base-200">
+          {nextMatch?.noMatch ? (
+            <div className="text-center">
+              <h2 className="text-3xl font-bold mb-4">Nincs több mérkőzés</h2>
+              <p>Ezen a táblán (Tábla {selectedBoard}) minden mérkőzés lejátszódott.</p>
+            </div>
+          ) : !isReady ? (
+            <div className="text-center">
+              <h2 className="text-4xl font-bold mb-4">Tábla {selectedBoard}</h2>
+              <p className="text-2xl mb-2">
+                {nextMatch?.player1Name} vs. {nextMatch?.player2Name}
+              </p>
+              <p className="text-xl mb-6">Eredményíró: {nextMatch?.scribeName}</p>
+              <button
+                className="btn btn-success btn-lg"
+                onClick={() => {
+                  requestFullscreen();
+                  handleReady();
+                }}
+                disabled={loading}
+              >
+                {loading ? <span className="loading loading-spinner"></span> : "Ready"}
+              </button>
+            </div>
+          ) : (
+            <div className="text-center">
+              <h2 className="text-3xl font-bold mb-4">Darts Counter (Placeholder)</h2>
+              <p>Mérkőzés: {nextMatch?.player1Name} vs. {nextMatch?.player2Name}</p>
+              <p>Eredményíró: {nextMatch?.scribeName}</p>
+              <p className="mt-4">Itt lesz a 501-es visszaszámláló és statisztikák.</p>
+            </div>
+          )}
+        </div>
+      )}
+    </main>
+  );
+}

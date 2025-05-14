@@ -1,16 +1,7 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
+import { Toaster } from "react-hot-toast";
+import Link from "next/link";
 
 export const metadata: Metadata = {
   title: "Create Next App",
@@ -25,8 +16,23 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className='bg-base-100 text-base-content min-h-screen flex flex-col items-center justify-center p-4'
       >
+        <Toaster position="top-left"/>
+         {/* Header */}
+      <div className="navbar bg-base-100 shadow-md justify-evenly">
+        <div className="">
+          <h1 className="text-2xl font-bold pl-4">Darts Tournaments</h1>
+        </div>
+        <div className="">
+          <Link href="/" className="btn btn-ghost normal-case text-md">
+            Főoldal
+          </Link>
+          <Link href="/search" className="btn btn-ghost normal-case text-md">
+            játékos keresés
+          </Link>
+        </div>
+      </div>
         {children}
       </body>
     </html>
