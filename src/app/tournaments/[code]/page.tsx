@@ -4,8 +4,6 @@ import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { toast } from "react-hot-toast";
 import { useParams } from "next/navigation";
 
@@ -20,11 +18,74 @@ const playerSchema = z.object({
 type PasswordForm = z.infer<typeof passwordSchema>;
 type PlayerForm = z.infer<typeof playerSchema>;
 
+interface Player {
+  _id: string;
+  name: string;
+  stats?: {
+    matchesWon: number;
+  };
+}
+
+interface Standing {
+  playerId: { _id: string; name: string };
+  points: number;
+  legsWon: number;
+  legsLost: number;
+  legDifference: number;
+  rank: number;
+}
+
+interface GroupPlayer {
+  playerId: {
+    _id: string;
+    name: string;
+  };
+  number: number;
+}
+
+interface Match {
+  _id: string;
+  player1: { _id: string; name: string };
+  player2: { _id: string; name: string };
+  scorer?: { _id: string; name: string };
+  status: "pending" | "ongoing" | "finished";
+}
+
+interface Group {
+  _id: string;
+  players: GroupPlayer[];
+  standings: Standing[];
+  matches: Match[];
+}
+
+interface Tournament {
+  _id: string;
+  code: string;
+  name: string;
+  status: "created" | "group" | "knockout" | "finished";
+  boardCount: number;
+  description?: string;
+  createdAt: string;
+  players: Player[];
+  groups: Group[];
+}
+
+interface Board {
+  _id: string;
+  boardNumber: number;
+  status: "idle" | "waiting" | "playing";
+  waitingPlayers: Player[];
+  nextMatch?: {
+    player1: { _id: string; name: string };
+    player2: { _id: string; name: string };
+    scorer?: { _id: string; name: string };
+  };
+}
+
 export default function TournamentDetailsPage() {
-  const router = useRouter();
-  const {code} = useParams()
-  const [tournament, setTournament] = useState<any>(null);
-  const [boards, setBoards] = useState<any[]>([]);
+  const { code } = useParams();
+  const [tournament, setTournament] = useState<Tournament | null>(null);
+  const [boards, setBoards] = useState<Board[]>([]);
   const [isModerator, setIsModerator] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [sortBy, setSortBy] = useState<"name" | "ranking">("name");
@@ -41,33 +102,39 @@ export default function TournamentDetailsPage() {
     defaultValues: { playerInput: "" },
   });
 
-  // Torna adatainak lekérése és polling
+  // Torna adatainak lekérése
+  const fetchTournament = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/tournaments/${code}`);
+      if (!res.ok) throw new Error("Nem sikerült a torna lekérése");
+      const data = await res.json();
+      console.log("API Response:", data);
+      setTournament(data.tournament);
+      setBoards(data.boards);
+    } catch (error: any) {
+      toast.error(error.message || "Nem sikerült a torna lekérése");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Polling és kezdeti adatlekérés
   useEffect(() => {
-    const fetchTournament = async () => {
-      try {
-        const res = await fetch(`/api/tournaments/${code}`);
-        if (!res.ok) throw new Error("Nem sikerült a torna lekérése");
-        const data = await res.json();
-        setTournament(data.tournament);
-        setBoards(data.boards);
-      } catch (error: any) {
-        toast.error(error.message || "Nem sikerült a torna lekérése");
-      }
-    };
     fetchTournament();
 
-    // Polling a táblákhoz (waitingPlayers frissítése)
     const intervalId = setInterval(async () => {
       try {
         const res = await fetch(`/api/tournaments/${code}`);
         if (!res.ok) return;
         const data = await res.json();
+        console.log("Polling Response:", data);
+        setTournament(data.tournament);
         setBoards(data.boards);
       } catch (error) {
         console.error("Hiba a táblák pollingja során:", error);
       }
-    }, 300000); // 5 perc
-
+    }, 10000); // Reduced to 10 seconds for faster testing
     return () => clearInterval(intervalId);
   }, [code]);
 
@@ -121,8 +188,7 @@ export default function TournamentDetailsPage() {
         const error = await res.json();
         throw new Error(error.error || "Nem sikerült a játékos hozzáadása");
       }
-      const updatedTournament = await fetch(`/api/tournaments/${code}`).then((res) => res.json());
-      setTournament(updatedTournament.tournament);
+      await fetchTournament();
       toast.success("Játékos sikeresen hozzáadva");
       playerForm.reset();
     } catch (error: any) {
@@ -145,8 +211,7 @@ export default function TournamentDetailsPage() {
         const error = await res.json();
         throw new Error(error.error || "Nem sikerült a játékos törlése");
       }
-      const updatedTournament = await fetch(`/api/tournaments/${code}`).then((res) => res.json());
-      setTournament(updatedTournament.tournament);
+      await fetchTournament();
       toast.success("Játékos sikeresen törölve");
     } catch (error: any) {
       toast.error(error.message || "Nem sikerült a játékos törlése");
@@ -167,9 +232,7 @@ export default function TournamentDetailsPage() {
         const error = await res.json();
         throw new Error(error.error || "Nem sikerült a csoportok kiosztása");
       }
-      const updatedData = await fetch(`/api/tournaments/${code}`).then((res) => res.json());
-      setTournament(updatedData.tournament);
-      setBoards(updatedData.boards);
+      await fetchTournament();
       toast.success("Csoportok és mérkőzések sikeresen kiosztva");
     } catch (error: any) {
       toast.error(error.message || "Nem sikerült a csoportok kiosztása");
@@ -191,8 +254,7 @@ export default function TournamentDetailsPage() {
         const error = await res.json();
         throw new Error(error.error || "Nem sikerült az állapot módosítása");
       }
-      const updatedTournament = await fetch(`/api/tournaments/${code}`).then((res) => res.json());
-      setTournament(updatedTournament.tournament);
+      await fetchTournament();
       toast.success("Torna állapota sikeresen módosítva");
     } catch (error: any) {
       toast.error(error.message || "Nem sikerült az állapot módosítása");
@@ -201,31 +263,80 @@ export default function TournamentDetailsPage() {
     }
   };
 
+  // Kieső játékosok meghatározása
+  const getEliminatedPlayers = (groupIndex: number): string[] => {
+    if (!tournament || !tournament.groups || !tournament.players) return [];
+    const totalPlayers = tournament.players.length;
+    const groupsCount = tournament.groups.length;
+    if (groupsCount === 0) return [];
+  
+    // Calculate qualifying players (closest power of 2 <= totalPlayers)
+    const qualifyingPlayers = Math.pow(2, Math.floor(Math.log2(totalPlayers)));
+    const eliminatedPlayersCount = totalPlayers - qualifyingPlayers;
+  
+    // Get group sizes
+    const groupSizes = tournament.groups.map((group) => group.players?.length || 0);
+    const totalGroupPlayers = groupSizes.reduce((sum, size) => sum + size, 0);
+  
+    // Distribute eliminations based on group size proportion
+    const eliminationsPerGroup = groupSizes.map((size) =>
+      Math.round((size / totalGroupPlayers) * eliminatedPlayersCount)
+    );
+  
+    // Adjust to ensure total eliminations match eliminatedPlayersCount
+    let currentTotal = eliminationsPerGroup.reduce((sum, count) => sum + count, 0);
+    while (currentTotal !== eliminatedPlayersCount) {
+      const diff = eliminatedPlayersCount - currentTotal;
+      const indexToAdjust = diff > 0 ? 
+        groupSizes.findIndex((size, i) => eliminationsPerGroup[i] < size) : 
+        groupSizes.findIndex((size, i) => eliminationsPerGroup[i] > 0);
+      if (indexToAdjust === -1) break;
+      eliminationsPerGroup[indexToAdjust] += diff > 0 ? 1 : -1;
+      currentTotal += diff > 0 ? 1 : -1;
+    }
+  
+    const group = tournament.groups[groupIndex];
+    const eliminatedInGroup = eliminationsPerGroup[groupIndex] || 0;
+  
+    if (!group.standings || eliminatedInGroup <= 0) return [];
+  
+    // Sort standings by rank and get bottom players
+    const sortedStandings = [...group.standings].sort((a, b) => (a.rank || 0) - (b.rank || 0));
+    const eliminatedPlayers = sortedStandings.slice(-eliminatedInGroup).map((s) => s.playerId._id);
+  
+    console.log(
+      `Eliminated players for group ${groupIndex + 1} (eliminate ${eliminatedInGroup}):`,
+      eliminatedPlayers
+    );
+  
+    return eliminatedPlayers;
+  };
+
   if (!tournament) {
-    return <div className="min-h-screen bg-base-200 flex items-center justify-center">Betöltés...</div>;
+    return (
+      <div className="min-h-screen bg-base-200 w-full flex items-center justify-center">
+        <div className="spinner loading loading-spinner bg-red-800"></div>
+      </div>
+    );
   }
 
   // Játékosok rendezése
   const sortedPlayers = [...tournament.players].sort((a, b) => {
     if (sortBy === "name") {
-      return a.name.localeCompare(b.name, 'hu', { sensitivity: 'base' });
+      return a.name.localeCompare(b.name, "hu", { sensitivity: "base" });
     }
     return (b.stats?.matchesWon || 0) - (a.stats?.matchesWon || 0);
   });
 
   return (
     <main className="min-h-screen bg-base-200 w-full">
-
-
       <div className="container mx-auto p-4 flex flex-col md:flex-row gap-4">
         {/* Sidebar */}
-        <div
-          className={`drawer md:drawer-open ${isSidebarOpen ? 'drawer-open' : ''} md:w-1/4`}
-        >
+        <div className={`drawer md:drawer-open ${isSidebarOpen ? "drawer-open" : ""} md:w-1/3`}>
           <input id="sidebar" type="checkbox" className="drawer-toggle" checked={isSidebarOpen} />
           <div className="drawer-content md:hidden">
             <label htmlFor="sidebar" className="btn btn-primary drawer-button">
-              Sidebar bezárása
+              Sidebar {isSidebarOpen ? "bezárása" : "megnyitása"}
             </label>
           </div>
           <div className="drawer-side">
@@ -247,7 +358,7 @@ export default function TournamentDetailsPage() {
                 </button>
               </div>
               <ul className="space-y-2">
-                {sortedPlayers.map((player: any) => (
+                {sortedPlayers.map((player) => (
                   <li key={player._id} className="flex justify-between items-center">
                     <span>{player.name}</span>
                     {isModerator && (
@@ -270,11 +381,27 @@ export default function TournamentDetailsPage() {
         <div className="flex-1">
           <div className="card bg-base-100 shadow-xl">
             <div className="card-body">
-              <h1 className="card-title text-2xl">{tournament.name}</h1>
-              <p>Állapot: {tournament.status === "created" ? "Létrehozva" : tournament.status === "group" ? "Csoportkör" : tournament.status === "knockout" ? "Kieséses szakasz" : "Befejezve"}</p>
+              <div className="flex justify-between items-center mb-4">
+                <h1 className="card-title text-2xl">{tournament.name}</h1>
+                <button className="btn btn-primary" onClick={fetchTournament} disabled={loading}>
+                  {loading ? <span className="loading loading-spinner"></span> : "Frissítés"}
+                </button>
+              </div>
+              <p>
+                Állapot:{" "}
+                {tournament.status === "created"
+                  ? "Létrehozva"
+                  : tournament.status === "group"
+                  ? "Csoportkör"
+                  : tournament.status === "knockout"
+                  ? "Kieséses szakasz"
+                  : "Befejezve"}
+              </p>
               <p>Táblák száma: {tournament.boardCount}</p>
               {tournament.description && <p>Leírás: {tournament.description}</p>}
-              {tournament.createdAt && <p>Létrehozva: {new Date(tournament.createdAt).toLocaleString('hu-HU')}</p>}
+              {tournament.createdAt && (
+                <p>Létrehozva: {new Date(tournament.createdAt).toLocaleString("hu-HU")}</p>
+              )}
 
               {/* Moderátor hitelesítés */}
               {!isModerator && (
@@ -306,8 +433,10 @@ export default function TournamentDetailsPage() {
               {/* Moderátor funkciók */}
               {isModerator && (
                 <div className="mt-4 space-y-4">
-                  {/* Játékos hozzáadása */}
-                  <form onSubmit={playerForm.handleSubmit((data) => addPlayer(data.playerInput))} className="form-control">
+                  <form
+                    onSubmit={playerForm.handleSubmit((data) => addPlayer(data.playerInput))}
+                    className="form-control"
+                  >
                     <label className="label">
                       <span className="label-text">Játékos hozzáadása</span>
                     </label>
@@ -348,7 +477,6 @@ export default function TournamentDetailsPage() {
                     )}
                   </form>
 
-                  {/* Moderátor vezérlők */}
                   <div className="flex flex-wrap gap-2">
                     <button
                       className="btn btn-primary"
@@ -388,36 +516,75 @@ export default function TournamentDetailsPage() {
                 {tournament.groups.length === 0 ? (
                   <p>Nincsenek még csoportok kiosztva.</p>
                 ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                    {tournament.groups.map((group: any, index: number) => (
-                      <div key={index} className="card bg-base-200 shadow-md">
-                        <div className="card-body">
-                          <h3 className="card-title">Csoport {index + 1} (Tábla {index + 1})</h3>
-                          <h4 className="font-semibold">Játékosok:</h4>
-                          <ul className="list-disc pl-5">
-                            {group.players.map((player: any) => (
-                              <li key={player.playerId}>
-                                {player.number}. {player.name}
-                              </li>
-                            ))}
-                          </ul>
-                          <h4 className="font-semibold mt-4">Hátralévő mérkőzések:</h4>
-                          {group.matches.length === 0 ? (
-                            <p>Nincsenek mérkőzések.</p>
-                          ) : (
-                            <ul className="list-disc pl-5">
-                              {group.matches
-                                .filter((match: any) => match.status === 'pending')
-                                .map((match: any, matchIndex: number) => (
-                                  <li key={matchIndex}>
-                                    {match.player1Name} - {match.player2Name} (Eredményíró: {match.scribeName || 'Nincs'})
-                                  </li>
-                                ))}
-                            </ul>
-                          )}
+                  <div className="space-y-4 mt-4">
+                    {tournament.groups.map((group, index) => {
+                      console.log(`Group ${index + 1}:`, group);
+                      const eliminatedPlayers = getEliminatedPlayers(index);
+                      return (
+                        <div key={group._id} className="card bg-base-200 shadow-md">
+                          <div className="card-body">
+                            <h3 className="card-title">Csoport {index + 1} (Tábla {index + 1})</h3>
+                            <table className="table w-full">
+                              <thead>
+                                <tr>
+                                  <th>Sorszám</th>
+                                  <th>Név</th>
+                                  <th>Helyezés</th>
+                                  <th>Pontok</th>
+                                  <th>Legek</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {group.players && group.players.length > 0 ? (
+                                  group.players.map((player) => {
+                                    const standing = group.standings?.find(
+                                      (s) => s.playerId._id.toString() === player.playerId._id.toString()
+                                    );
+                                    const isEliminated = eliminatedPlayers.includes(
+                                      player.playerId._id.toString()
+                                    );
+                                    console.log(`Player ${player.playerId.name}:`, { standing, isEliminated });
+                                    return (
+                                      <tr key={player.playerId._id}>
+                                        <td>{player.number || "-"}</td>
+                                        <td className={isEliminated ? "text-error" : ""}>
+                                          {player.playerId.name || "Ismeretlen"}
+                                        </td>
+                                        <td>{standing?.rank || "-"}</td>
+                                        <td>{standing?.points || 0}</td>
+                                        <td>
+                                          {standing ? `${standing.legsWon}/${standing.legsLost}` : "-"}
+                                        </td>
+                                      </tr>
+                                    );
+                                  })
+                                ) : (
+                                  <tr>
+                                    <td colSpan={5}>Nincsenek játékosok a csoportban.</td>
+                                  </tr>
+                                )}
+                              </tbody>
+                            </table>
+                            <h4 className="font-semibold mt-4">Hátralévő mérkőzések:</h4>
+                            {group.matches && group.matches.length > 0 ? (
+                              <ul className="list-disc pl-5">
+                                {group.matches
+                                  .filter((match) => match.status === "pending")
+                                  .map((match, matchIndex) => (
+                                    <li key={match._id || matchIndex}>
+                                      {(match.player1?.name || "Ismeretlen")} -{" "}
+                                      {(match.player2?.name || "Ismeretlen")} (Eredményíró:{" "}
+                                      {match.scorer?.name || "Nincs"})
+                                    </li>
+                                  ))}
+                              </ul>
+                            ) : (
+                              <p>Nincsenek hátralévő mérkőzések.</p>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>
@@ -433,17 +600,35 @@ export default function TournamentDetailsPage() {
                       <div key={board._id} className="card bg-base-200 shadow-md">
                         <div className="card-body">
                           <h3 className="card-title">Tábla {board.boardNumber}</h3>
-                          <p>Állapot: {board.status === "idle" ? "Üres" : board.status === "waiting" ? "Várakozik" : "Játékban"}</p>
-                          {board.waitingPlayers.length > 0 && (
+                          <p>
+                            Állapot:{" "}
+                            {board.status === "idle"
+                              ? "Üres"
+                              : board.status === "waiting"
+                              ? "Várakozik"
+                              : "Játékban"}
+                          </p>
+                          {board.status === "waiting" && board.nextMatch ? (
+                            <div>
+                              <h4>Várakozik a következő játékosokra:</h4>
+                              <ul className="list-disc pl-5">
+                              
+                                <li>{board.nextMatch.player1.name || "Ismeretlen"}</li>
+                                <li>{board.nextMatch.player2.name || "Ismeretlen"}</li>
+                              </ul>
+                              <h4>Várakozik az eredményíróra:</h4>
+                              <p className="pl-5">{board.nextMatch.scorer?.name || "Nincs"}</p>
+                            </div>
+                          ) : board.waitingPlayers && board.waitingPlayers.length > 0 ? (
                             <div>
                               <h4>Várakozó játékosok:</h4>
                               <ul className="list-disc pl-5">
-                                {board.waitingPlayers.map((player: any) => (
-                                  <li key={player._id}>{player.name}</li>
+                                {board.waitingPlayers.map((player) => (
+                                  <li key={player._id}>{player.name || "Ismeretlen"}</li>
                                 ))}
                               </ul>
                             </div>
-                          )}
+                          ) : null}
                         </div>
                       </div>
                     ))}

@@ -14,12 +14,12 @@ export async function GET(request: Request) {
     if (!tournamentId || !boardNumber) {
       return NextResponse.json({ error: "tournamentId és boardNumber megadása kötelező" }, { status: 400 });
     }
-
-    const board = await BoardModel.findOne({
+    console.log("tournamentId:", tournamentId);
+    console.log("boardNumber:", boardNumber);
+    const boards = await BoardModel.find({
       tournamentId,
-      boardNumber: parseInt(boardNumber),
-    }).lean<Board>();
-
+    }).lean<Board[]>()
+    const board = boards[parseInt(boardNumber)-1]
     if (!board) {
       return NextResponse.json({ error: "Tábla nem található" }, { status: 404 });
     }

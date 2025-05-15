@@ -1,6 +1,7 @@
+// BoardPage.tsx
 'use client';
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -53,6 +54,9 @@ export default function BoardPage() {
       const { tournamentId, boardCount } = await res.json();
       setTournamentId(tournamentId);
       setBoardCount(boardCount);
+      localStorage.setItem("tournamentId", tournamentId);
+      localStorage.setItem("tournamentCode", data.code);
+      localStorage.setItem("tournamentPassword", data.password);
       toast.success("Torna sikeresen validálva");
     } catch (error: any) {
       toast.error(error.message || "Nem sikerült a validáció");
@@ -63,9 +67,9 @@ export default function BoardPage() {
 
   // Tábla kiválasztása és következő mérkőzés lekérése
   const handleBoardSelect = async (data: BoardForm) => {
+    if (!tournamentId || !data.boardNumber) return;
     setLoading(true);
     try {
-      // Tábla ID lekérése
       const boardRes = await fetch(`/api/boards?tournamentId=${tournamentId}&boardNumber=${data.boardNumber}`);
       if (!boardRes.ok) {
         const error = await boardRes.json();
@@ -74,20 +78,53 @@ export default function BoardPage() {
       const boardData = await boardRes.json();
       setBoardId(boardData.boardId);
       setSelectedBoard(data.boardNumber);
+      localStorage.setItem("boardNumber", data.boardNumber);
 
-      // Következő mérkőzés lekérése
-      const matchRes = await fetch(`/api/boards/${tournamentId}/${data.boardNumber}/next-match`);
-      if (!matchRes.ok) {
-        const error = await matchRes.json();
-        throw new Error(error.error || "Nem sikerült a mérkőzés lekérése");
+      const statusRes = await fetch(`/api/board/${boardData.boardId}/status`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "waiting" }),
+      });
+      if (!statusRes.ok) {
+        const error = await statusRes.json();
+        throw new Error(error.error || "Nem sikerült a tábla állapotának frissítése");
       }
-      const matchData = await matchRes.json();
-      setNextMatch(matchData);
+
+      await checkOngoingMatch(data.boardNumber);
+
       toast.success("Tábla kiválasztva");
     } catch (error: any) {
       toast.error(error.message || "Nem sikerült a tábla kiválasztása");
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Folyamatban lévő mérkőzés ellenőrzése
+  const checkOngoingMatch = async (boardNumber: string) => {
+    if (!tournamentId || !boardNumber) return;
+    try {
+      const matchRes = await fetch(`/api/boards/${tournamentId}/${boardNumber}/current-match`);
+      if (!matchRes.ok) {
+        const error = await matchRes.json();
+        if (error.error === "Nincs folyamatban lévő mérkőzés") {
+          const nextMatchRes = await fetch(`/api/boards/${tournamentId}/${boardNumber}/next-match`);
+          if (!nextMatchRes.ok) {
+            const nextError = await nextMatchRes.json();
+            throw new Error(nextError.error || "Nem sikerült a mérkőzés lekérése");
+          }
+          const matchData = await nextMatchRes.json();
+          setNextMatch(matchData);
+          setIsReady(false);
+          return;
+        }
+        throw new Error(error.error || "Nem sikerült a mérkőzés lekérése");
+      }
+      const matchData = await matchRes.json();
+      setNextMatch(matchData);
+      setIsReady(true);
+    } catch (error: any) {
+      console.error("Hiba a folyamatban lévő mérkőzés ellenőrzésekor:", error);
     }
   };
 
@@ -114,6 +151,56 @@ export default function BoardPage() {
     }
   };
 
+  // Mérkőzés befejezése
+  const handleFinishMatch = async () => {
+    if (!nextMatch?.matchId || !boardId || !selectedBoard) return;
+    setLoading(true);
+    console.log("Finishing match with data:", nextMatch);
+    try {
+      const matchResult = {
+        winnerId: nextMatch.player1Id,
+        player1LegsWon: 3,
+        player2LegsWon: 1,
+        stats: {
+          player1: {
+            legsWon: 3,
+            dartsThrown: 60,
+            average: 80.25,
+          },
+          player2: {
+            legsWon: 1,
+            dartsThrown: 50,
+            average: 70.5,
+          },
+        },
+      };
+
+      console.log("Sending match result:", matchResult);
+
+      const res = await fetch(`/api/matches/${nextMatch.matchId}/finish`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(matchResult),
+      });
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error || "Nem sikerült a mérkőzés befejezése");
+      }
+      const { nextMatch: newMatch } = await res.json();
+      setNextMatch(newMatch || { noMatch: true });
+      setIsReady(false);
+
+      // Fetch the next match immediately
+      await checkOngoingMatch(selectedBoard);
+
+      toast.success("Mérkőzés befejezve");
+    } catch (error: any) {
+      toast.error(error.message || "Nem sikerült a mérkőzés befejezése");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Fullscreen kérés
   const requestFullscreen = () => {
     const element = document.documentElement;
@@ -121,6 +208,25 @@ export default function BoardPage() {
       element.requestFullscreen();
     }
   };
+
+  // Automatikus bejelentkezés és állapot visszaállítás
+  useEffect(() => {
+    const storedTournamentId = localStorage.getItem("tournamentId");
+    const storedBoardNumber = localStorage.getItem("boardNumber");
+    const storedCode = localStorage.getItem("tournamentCode");
+    const storedPassword = localStorage.getItem("tournamentPassword");
+
+    console.log("Stored data:", { storedTournamentId, storedBoardNumber, storedCode, storedPassword });
+
+    if (storedCode && storedPassword && !tournamentId) {
+      handleValidate({ code: storedCode, password: storedPassword });
+    }
+
+    if (storedTournamentId && storedBoardNumber && tournamentId) {
+      setSelectedBoard(storedBoardNumber);
+      handleBoardSelect({ boardNumber: storedBoardNumber });
+    }
+  }, [tournamentId]);
 
   return (
     <main className="min-h-screen w-full bg-base-200 flex items-center justify-center">
@@ -226,6 +332,13 @@ export default function BoardPage() {
               <p>Mérkőzés: {nextMatch?.player1Name} vs. {nextMatch?.player2Name}</p>
               <p>Eredményíró: {nextMatch?.scribeName}</p>
               <p className="mt-4">Itt lesz a 501-es visszaszámláló és statisztikák.</p>
+              <button
+                className="btn btn-error btn-lg mt-4"
+                onClick={handleFinishMatch}
+                disabled={loading}
+              >
+                {loading ? <span className="loading loading-spinner"></span> : "Mérkőzés befejezése"}
+              </button>
             </div>
           )}
         </div>

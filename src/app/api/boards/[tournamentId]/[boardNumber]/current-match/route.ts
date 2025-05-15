@@ -1,4 +1,4 @@
-// app/api/boards/[tournamentId]/[boardNumber]/next-match/route.ts
+// app/api/boards/[tournamentId]/[boardNumber]/current-match/route.ts
 import { connectMongo } from "@/lib/mongoose";
 import { getModels } from "@/lib/models";
 import { NextResponse } from "next/server";
@@ -12,7 +12,7 @@ export async function GET(
   try {
     await connectMongo();
     const { TournamentModel, MatchModel, PlayerModel } = getModels();
-    const { tournamentId, boardNumber } = params;
+    const { tournamentId, boardNumber } = await params;
 
     const tournament = await TournamentModel.findById(tournamentId).lean<Tournament>();
     if (!tournament) {
@@ -24,11 +24,11 @@ export async function GET(
       return NextResponse.json({ error: "Érvénytelen tábla szám" }, { status: 400 });
     }
 
-    // Keresünk egy pending mérkőzést az adott csoportban
+    // Keresünk egy folyamatban lévő mérkőzést az adott csoportban
     const match = await MatchModel.findOne({
       tournamentId,
       groupIndex,
-      status: "pending",
+      status: "playing",
     })
       .populate("player1", "name", PlayerModel)
       .populate("player2", "name", PlayerModel)
@@ -36,19 +36,19 @@ export async function GET(
       .lean() as PopulatedMatch | null;
 
     if (!match) {
-      return NextResponse.json({ noMatch: true }, { status: 200 });
+      return NextResponse.json({ error: "Nincs folyamatban lévő mérkőzés" }, { status: 404 });
     }
 
     return NextResponse.json({
       matchId: match._id,
-      player1Id: match.player1._id, // Include ObjectId
-      player2Id: match.player2._id, // Include ObjectId
+      player1Id: match.player1._id,
+      player2Id: match.player2._id,
       player1Name: match.player1.name,
       player2Name: match.player2.name,
       scribeName: match.scorer?.name || "Nincs",
     });
   } catch (error) {
-    console.error("Hiba a következő mérkőzés lekérésekor:", error);
+    console.error("Hiba a folyamatban lévő mérkőzés lekérésekor:", error);
     return NextResponse.json({ error: "Nem sikerült a mérkőzés lekérése" }, { status: 500 });
   }
 }
