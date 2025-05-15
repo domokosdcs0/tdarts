@@ -22,15 +22,18 @@ export interface Player {
 }
 
 export interface Leg {
-  player1Score: number;
-  player2Score: number;
-  player1Darts: { score: number; darts: number }[];
-  player2Darts: { score: number; darts: number }[];
-  winner?: mongoose.Types.ObjectId;
-  checkout?: {
-    player?: mongoose.Types.ObjectId;
-    score?: number;
-    darts?: number;
+  player1Throws: { score: number; darts: number }[];
+  player2Throws: { score: number; darts: number }[];
+  winnerId?: mongoose.Types.ObjectId;
+  checkoutDarts?: number;
+  doubleAttempts?: number;
+  highestCheckout?: {
+    player1: number
+    player2: number;
+  };
+  oneEighties: {
+    player1: number[];
+    player2: number[];
   };
   createdAt: Date;
 }
@@ -86,25 +89,21 @@ export const MatchSchema = new mongoose.Schema({
   scorer: { type: mongoose.Schema.Types.ObjectId, ref: 'Player' },
   status: { type: String, enum: ['pending', 'ongoing', 'finished'], default: 'pending' },
   legs: {
-    type: [LegSchema],
-    validate: {
-      validator: (v: Leg[]) => v.length <= 7,
-      message: 'Too many legs (maximum 7 allowed)',
-    },
+    type: [{
+      player1Throws: [{ score: Number, darts: Number }],
+      player2Throws: [{ score: Number, darts: Number }],
+      winnerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Player' },
+      checkoutDarts: Number,
+      doubleAttempts: Number,
+      highestCheckout: { score: Number, darts: Number, playerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Player' } },
+      oneEighties: { player1: [Number], player2: [Number] },
+      createdAt: { type: Date, default: Date.now },
+    }],
+    validate: { validator: (v: any[]) => v.length <= 7, message: 'Too many legs (maximum 7 allowed)' },
   },
   stats: {
-    player1: {
-      average: { type: Number, default: 0 },
-      checkoutRate: { type: Number, default: 0 },
-      dartsThrown: { type: Number, default: 0 },
-      legsWon: { type: Number, default: 0 },
-    },
-    player2: {
-      average: { type: Number, default: 0 },
-      checkoutRate: { type: Number, default: 0 },
-      dartsThrown: { type: Number, default: 0 },
-      legsWon: { type: Number, default: 0 },
-    },
+    player1: { average: { type: Number, default: 0 }, dartsThrown: { type: Number, default: 0 }, legsWon: { type: Number, default: 0 } },
+    player2: { average: { type: Number, default: 0 }, dartsThrown: { type: Number, default: 0 }, legsWon: { type: Number, default: 0 } },
   },
   winner: { type: mongoose.Schema.Types.ObjectId, ref: 'Player' },
   createdAt: { type: Date, default: Date.now },

@@ -3,367 +3,148 @@ import { getModels } from "@/lib/models";
 import { NextResponse } from "next/server";
 import { v4 as uuidv4 } from "uuid";
 
-// Mérkőzések generálása a minta alapján bármekkora csoportméretre
 function generateMatches(playerCount: number): { player1Idx: number; player2Idx: number; scorerIdx: number }[] {
-  switch (playerCount) {
-    default:
-      return []; // Handle undefined playerCount cases
-    case 2:
-      return [
-        { player1Idx: 0, player2Idx: 1, scorerIdx: 0 }, // 1-2(1)
-      ];
+  // Összes lehetséges pár generálása
+  const matches: { player1Idx: number; player2Idx: number }[] = [];
+  for (let i = 0; i < playerCount; i++) {
+      for (let j = i + 1; j < playerCount; j++) {
+          matches.push({ player1Idx: i, player2Idx: j });
+      }
+  }
 
-    case 3:
-      return [
-        { player1Idx: 0, player2Idx: 1, scorerIdx: 2 }, // 1-2(3)
-        { player1Idx: 1, player2Idx: 2, scorerIdx: 0 }, // 2-3(1)
-        { player1Idx: 0, player2Idx: 2, scorerIdx: 1 }, // 1-3(2)
-      ];
+  // Fisher-Yates keverés
+  function shuffle(array: any[]): void {
+      for (let i = array.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [array[i], array[j]] = [array[j], array[i]];
+      }
+  }
 
-    case 4:
-      return [
-        { player1Idx: 0, player2Idx: 1, scorerIdx: 2 }, // 1-2(3)
-        { player1Idx: 2, player2Idx: 3, scorerIdx: 0 }, // 3-4(1)
-        { player1Idx: 1, player2Idx: 2, scorerIdx: 3 }, // 2-3(4)
-        { player1Idx: 0, player2Idx: 3, scorerIdx: 1 }, // 1-4(2)
-        { player1Idx: 1, player2Idx: 3, scorerIdx: 2 }, // 2-4(3)
-        { player1Idx: 0, player2Idx: 2, scorerIdx: 1 }, // 1-3(2)
-      ];
+  // Ellenőrzi, hogy egy játékosnak hány egymást követő mérkőzése van
+  function countConsecutiveMatches(matches: { player1Idx: number; player2Idx: number }[]): { player: number; count: number }[] {
+      const consecutiveCounts: { [key: number]: number } = {};
+      for (let i = 0; i < playerCount; i++) {
+          consecutiveCounts[i] = 0;
+      }
 
-    case 5:
-      return [
-        { player1Idx: 0, player2Idx: 1, scorerIdx: 2 }, // 1-2(3)
-        { player1Idx: 2, player2Idx: 3, scorerIdx: 4 }, // 3-4(5)
-        { player1Idx: 1, player2Idx: 4, scorerIdx: 3 }, // 2-5(4)
-        { player1Idx: 0, player2Idx: 3, scorerIdx: 1 }, // 1-4(2)
-        { player1Idx: 2, player2Idx: 4, scorerIdx: 0 }, // 3-5(1)
-        { player1Idx: 1, player2Idx: 3, scorerIdx: 2 }, // 2-4(3)
-        { player1Idx: 0, player2Idx: 4, scorerIdx: 3 }, // 1-5(4)
-        { player1Idx: 1, player2Idx: 2, scorerIdx: 0 }, // 2-3(1)
-        { player1Idx: 3, player2Idx: 4, scorerIdx: 1 }, // 4-5(2)
-        { player1Idx: 0, player2Idx: 2, scorerIdx: 4 }, // 1-3(5)
-      ];
+      for (let i = 1; i < matches.length; i++) {
+          const prevMatch = matches[i - 1];
+          const currMatch = matches[i];
+          const prevPlayers = new Set([prevMatch.player1Idx, prevMatch.player2Idx]);
+          const currPlayers = new Set([currMatch.player1Idx, currMatch.player2Idx]);
 
-    case 6:
-      return [
-        { player1Idx: 0, player2Idx: 1, scorerIdx: 2 }, // 1-2(3)
-        { player1Idx: 2, player2Idx: 3, scorerIdx: 4 }, // 3-4(5)
-        { player1Idx: 4, player2Idx: 5, scorerIdx: 0 }, // 5-6(1)
-        { player1Idx: 1, player2Idx: 2, scorerIdx: 3 }, // 2-3(4)
-        { player1Idx: 3, player2Idx: 4, scorerIdx: 5 }, // 4-5(6)
-        { player1Idx: 0, player2Idx: 5, scorerIdx: 1 }, // 1-6(2)
-        { player1Idx: 1, player2Idx: 3, scorerIdx: 2 }, // 2-4(3)
-        { player1Idx: 2, player2Idx: 5, scorerIdx: 4 }, // 3-6(5)
-        { player1Idx: 0, player2Idx: 4, scorerIdx: 3 }, // 1-5(4)
-        { player1Idx: 1, player2Idx: 5, scorerIdx: 0 }, // 2-6(1)
-        { player1Idx: 0, player2Idx: 3, scorerIdx: 5 }, // 1-4(6)
-        { player1Idx: 2, player2Idx: 4, scorerIdx: 1 }, // 3-5(2)
-        { player1Idx: 0, player2Idx: 2, scorerIdx: 4 }, // 1-3(5)
-        { player1Idx: 1, player2Idx: 4, scorerIdx: 3 }, // 2-5(4)
-        { player1Idx: 3, player2Idx: 5, scorerIdx: 2 }, // 4-6(3)
-      ];
+          for (const player of prevPlayers) {
+              if (currPlayers.has(player)) {
+                  consecutiveCounts[player]++;
+              }
+          }
+      }
 
-    case 7:
-      return [
-        { player1Idx: 0, player2Idx: 1, scorerIdx: 2 }, // 1-2(3)
-        { player1Idx: 2, player2Idx: 3, scorerIdx: 4 }, // 3-4(5)
-        { player1Idx: 4, player2Idx: 5, scorerIdx: 6 }, // 5-6(7)
-        { player1Idx: 1, player2Idx: 6, scorerIdx: 3 }, // 2-7(4)
-        { player1Idx: 2, player2Idx: 5, scorerIdx: 0 }, // 3-6(1)
-        { player1Idx: 3, player2Idx: 4, scorerIdx: 1 }, // 4-5(2)
-        { player1Idx: 0, player2Idx: 6, scorerIdx: 5 }, // 1-7(6)
-        { player1Idx: 1, player2Idx: 5, scorerIdx: 4 }, // 2-6(5)
-        { player1Idx: 2, player2Idx: 4, scorerIdx: 3 }, // 3-5(4)
-        { player1Idx: 0, player2Idx: 3, scorerIdx: 2 }, // 1-4(3)
-        { player1Idx: 1, player2Idx: 4, scorerIdx: 6 }, // 2-5(7)
-        { player1Idx: 5, player2Idx: 6, scorerIdx: 0 }, // 6-7(1)
-        { player1Idx: 0, player2Idx: 2, scorerIdx: 1 }, // 1-3(2)
-        { player1Idx: 3, player2Idx: 6, scorerIdx: 5 }, // 4-7(6)
-        { player1Idx: 1, player2Idx: 3, scorerIdx: 4 }, // 2-4(5)
-        { player1Idx: 4, player2Idx: 6, scorerIdx: 2 }, // 5-7(3)
-        { player1Idx: 0, player2Idx: 5, scorerIdx: 3 }, // 1-6(4)
-        { player1Idx: 2, player2Idx: 6, scorerIdx: 1 }, // 3-7(2)
-        { player1Idx: 1, player2Idx: 2, scorerIdx: 5 }, // 2-3(6)
-        { player1Idx: 0, player2Idx: 4, scorerIdx: 6 }, // 1-5(7)
-        { player1Idx: 3, player2Idx: 5, scorerIdx: 0 }, // 4-6(1)
-      ];
+      return Object.entries(consecutiveCounts).map(([player, count]) => ({
+          player: parseInt(player),
+          count
+      }));
+  }
 
-    case 8:
-      return [
-        { player1Idx: 0, player2Idx: 1, scorerIdx: 2 }, // 1-2(3)
-        { player1Idx: 2, player2Idx: 3, scorerIdx: 4 }, // 3-4(5)
-        { player1Idx: 4, player2Idx: 5, scorerIdx: 6 }, // 5-6(7)
-        { player1Idx: 6, player2Idx: 7, scorerIdx: 0 }, // 7-8(1)
-        { player1Idx: 1, player2Idx: 2, scorerIdx: 3 }, // 2-3(4)
-        { player1Idx: 3, player2Idx: 4, scorerIdx: 5 }, // 4-5(6)
-        { player1Idx: 5, player2Idx: 6, scorerIdx: 7 }, // 6-7(8)
-        { player1Idx: 0, player2Idx: 7, scorerIdx: 1 }, // 1-8(2)
-        { player1Idx: 1, player2Idx: 3, scorerIdx: 2 }, // 2-4(3)
-        { player1Idx: 2, player2Idx: 5, scorerIdx: 4 }, // 3-6(5)
-        { player1Idx: 4, player2Idx: 7, scorerIdx: 6 }, // 5-8(7)
-        { player1Idx: 0, player2Idx: 6, scorerIdx: 5 }, // 1-7(6)
-        { player1Idx: 1, player2Idx: 4, scorerIdx: 3 }, // 2-5(4)
-        { player1Idx: 3, player2Idx: 6, scorerIdx: 2 }, // 4-7(3)
-        { player1Idx: 2, player2Idx: 7, scorerIdx: 0 }, // 3-8(1)
-        { player1Idx: 0, player2Idx: 5, scorerIdx: 4 }, // 1-6(5)
-        { player1Idx: 1, player2Idx: 6, scorerIdx: 7 }, // 2-7(8)
-        { player1Idx: 3, player2Idx: 5, scorerIdx: 1 }, // 4-6(2)
-        { player1Idx: 0, player2Idx: 4, scorerIdx: 6 }, // 1-5(7)
-        { player1Idx: 2, player2Idx: 6, scorerIdx: 5 }, // 3-7(6)
-        { player1Idx: 1, player2Idx: 7, scorerIdx: 3 }, // 2-8(4)
-        { player1Idx: 0, player2Idx: 3, scorerIdx: 2 }, // 1-4(3)
-        { player1Idx: 4, player2Idx: 6, scorerIdx: 0 }, // 5-7(1)
-        { player1Idx: 2, player2Idx: 4, scorerIdx: 7 }, // 3-5(8)
-        { player1Idx: 1, player2Idx: 5, scorerIdx: 6 }, // 2-6(7)
-        { player1Idx: 0, player2Idx: 2, scorerIdx: 4 }, // 1-3(5)
-        { player1Idx: 3, player2Idx: 7, scorerIdx: 5 }, // 4-8(6)
-        { player1Idx: 5, player2Idx: 7, scorerIdx: 1 }, // 6-8(2)
-      ];
+  // Próbálkozások a megfelelő mérkőzéssorrend megtalálására
+  const maxAttempts = 1000;
+  let attempts = 0;
+  let validOrder = false;
 
-    case 9:
-      return [
-        { player1Idx: 0, player2Idx: 1, scorerIdx: 2 }, // 1-2(3)
-        { player1Idx: 2, player2Idx: 3, scorerIdx: 4 }, // 3-4(5)
-        { player1Idx: 4, player2Idx: 5, scorerIdx: 6 }, // 5-6(7)
-        { player1Idx: 6, player2Idx: 7, scorerIdx: 8 }, // 7-8(9)
-        { player1Idx: 1, player2Idx: 8, scorerIdx: 3 }, // 2-9(4)
-        { player1Idx: 2, player2Idx: 5, scorerIdx: 7 }, // 3-6(8)
-        { player1Idx: 3, player2Idx: 4, scorerIdx: 0 }, // 4-5(1)
-        { player1Idx: 6, player2Idx: 8, scorerIdx: 1 }, // 7-9(2)
-        { player1Idx: 0, player2Idx: 7, scorerIdx: 5 }, // 1-8(6)
-        { player1Idx: 1, player2Idx: 3, scorerIdx: 4 }, // 2-4(5)
-        { player1Idx: 2, player2Idx: 6, scorerIdx: 8 }, // 3-7(9)
-        { player1Idx: 4, player2Idx: 8, scorerIdx: 2 }, // 5-9(3)
-        { player1Idx: 5, player2Idx: 7, scorerIdx: 0 }, // 6-8(1)
-        { player1Idx: 0, player2Idx: 3, scorerIdx: 6 }, // 1-4(7)
-        { player1Idx: 1, player2Idx: 5, scorerIdx: 4 }, // 2-6(5)
-        { player1Idx: 2, player2Idx: 8, scorerIdx: 7 }, // 3-9(8)
-        { player1Idx: 4, player2Idx: 6, scorerIdx: 3 }, // 5-7(4)
-        { player1Idx: 0, player2Idx: 2, scorerIdx: 1 }, // 1-3(2)
-        { player1Idx: 3, player2Idx: 7, scorerIdx: 5 }, // 4-8(6)
-        { player1Idx: 1, player2Idx: 4, scorerIdx: 8 }, // 2-5(9)
-        { player1Idx: 5, player2Idx: 8, scorerIdx: 6 }, // 6-9(7)
-        { player1Idx: 0, player2Idx: 6, scorerIdx: 2 }, // 1-7(3)
-        { player1Idx: 2, player2Idx: 4, scorerIdx: 0 }, // 3-5(1)
-        { player1Idx: 1, player2Idx: 7, scorerIdx: 3 }, // 2-8(4)
-        { player1Idx: 3, player2Idx: 8, scorerIdx: 5 }, // 4-9(6)
-        { player1Idx: 0, player2Idx: 5, scorerIdx: 4 }, // 1-6(5)
-        { player1Idx: 2, player2Idx: 7, scorerIdx: 1 }, // 3-8(2)
-        { player1Idx: 1, player2Idx: 6, scorerIdx: 8 }, // 2-7(9)
-        { player1Idx: 0, player2Idx: 4, scorerIdx: 7 }, // 1-5(8)
-        { player1Idx: 3, player2Idx: 6, scorerIdx: 2 }, // 4-7(3)
-        { player1Idx: 5, player2Idx: 7, scorerIdx: 0 }, // 6-8(1)
-        { player1Idx: 2, player2Idx: 5, scorerIdx: 3 }, // 3-6(4)
-        { player1Idx: 1, player2Idx: 2, scorerIdx: 6 }, // 2-3(7)
-        { player1Idx: 0, player2Idx: 8, scorerIdx: 4 }, // 1-9(5)
-        { player1Idx: 4, player2Idx: 7, scorerIdx: 1 }, // 5-8(2)
-        { player1Idx: 3, player2Idx: 5, scorerIdx: 8 }, // 4-6(9)
-      ];
+  while (!validOrder && attempts < maxAttempts) {
+      shuffle(matches);
+      const consecutiveMatches = countConsecutiveMatches(matches);
+      const hasInvalidConsecutive = consecutiveMatches.some(cm => cm.count > 1);
+      const totalConsecutive = consecutiveMatches.reduce((sum, cm) => sum + cm.count, 0);
 
-    case 10:
-      return [
-        { player1Idx: 0, player2Idx: 1, scorerIdx: 2 }, // 1-2(3)
-        { player1Idx: 2, player2Idx: 3, scorerIdx: 4 }, // 3-4(5)
-        { player1Idx: 4, player2Idx: 5, scorerIdx: 6 }, // 5-6(7)
-        { player1Idx: 6, player2Idx: 7, scorerIdx: 8 }, // 7-8(9)
-        { player1Idx: 8, player2Idx: 9, scorerIdx: 0 }, // 9-10(1)
-        { player1Idx: 1, player2Idx: 2, scorerIdx: 3 }, // 2-3(4)
-        { player1Idx: 3, player2Idx: 4, scorerIdx: 5 }, // 4-5(6)
-        { player1Idx: 5, player2Idx: 6, scorerIdx: 7 }, // 6-7(8)
-        { player1Idx: 7, player2Idx: 8, scorerIdx: 9 }, // 8-9(10)
-        { player1Idx: 0, player2Idx: 9, scorerIdx: 1 }, // 1-10(2)
-        { player1Idx: 1, player2Idx: 3, scorerIdx: 2 }, // 2-4(3)
-        { player1Idx: 2, player2Idx: 5, scorerIdx: 4 }, // 3-6(5)
-        { player1Idx: 4, player2Idx: 7, scorerIdx: 6 }, // 5-8(7)
-        { player1Idx: 6, player2Idx: 9, scorerIdx: 8 }, // 7-10(9)
-        { player1Idx: 0, player2Idx: 8, scorerIdx: 5 }, // 1-9(6)
-        { player1Idx: 1, player2Idx: 4, scorerIdx: 3 }, // 2-5(4)
-        { player1Idx: 3, player2Idx: 6, scorerIdx: 2 }, // 4-7(3)
-        { player1Idx: 5, player2Idx: 8, scorerIdx: 7 }, // 6-9(8)
-        { player1Idx: 7, player2Idx: 9, scorerIdx: 0 }, // 8-10(1)
-        { player1Idx: 0, player2Idx: 7, scorerIdx: 4 }, // 1-8(5)
-        { player1Idx: 1, player2Idx: 5, scorerIdx: 6 }, // 2-6(7)
-        { player1Idx: 3, player2Idx: 8, scorerIdx: 9 }, // 4-9(10)
-        { player1Idx: 2, player2Idx: 9, scorerIdx: 1 }, // 3-10(2)
-        { player1Idx: 4, player2Idx: 6, scorerIdx: 3 }, // 5-7(4)
-        { player1Idx: 0, player2Idx: 6, scorerIdx: 2 }, // 1-7(3)
-        { player1Idx: 1, player2Idx: 8, scorerIdx: 5 }, // 2-9(6)
-        { player1Idx: 3, player2Idx: 9, scorerIdx: 7 }, // 4-10(8)
-        { player1Idx: 2, player2Idx: 7, scorerIdx: 0 }, // 3-8(1)
-        { player1Idx: 4, player2Idx: 5, scorerIdx: 8 }, // 5-6(9)
-        { player1Idx: 0, player2Idx: 5, scorerIdx: 1 }, // 1-6(2)
-        { player1Idx: 1, player2Idx: 9, scorerIdx: 4 }, // 2-10(5)
-        { player1Idx: 2, player2Idx: 6, scorerIdx: 3 }, // 3-7(4)
-        { player1Idx: 4, player2Idx: 8, scorerIdx: 6 }, // 5-9(7)
-        { player1Idx: 3, player2Idx: 7, scorerIdx: 2 }, // 4-8(3)
-        { player1Idx: 0, player2Idx: 4, scorerIdx: 9 }, // 1-5(10)
-        { player1Idx: 1, player2Idx: 7, scorerIdx: 8 }, // 2-8(9)
-        { player1Idx: 2, player2Idx: 8, scorerIdx: 5 }, // 3-9(6)
-        { player1Idx: 3, player2Idx: 5, scorerIdx: 0 }, // 4-6(1)
-        { player1Idx: 6, player2Idx: 8, scorerIdx: 4 }, // 7-9(5)
-        { player1Idx: 0, player2Idx: 3, scorerIdx: 6 }, // 1-4(7)
-        { player1Idx: 1, player2Idx: 6, scorerIdx: 9 }, // 2-7(10)
-        { player1Idx: 2, player2Idx: 4, scorerIdx: 7 }, // 3-5(8)
-        { player1Idx: 5, player2Idx: 9, scorerIdx: 3 }, // 6-10(4)
-        { player1Idx: 0, player2Idx: 2, scorerIdx: 8 }, // 1-3(9)
-      ];
+      // A sorrend érvényes, ha minden játékosnak max 1 egymást követő mérkőzése van,
+      // és összesen max 1 ilyen eset van
+      if (!hasInvalidConsecutive && totalConsecutive <= 1) {
+          validOrder = true;
+      }
+      attempts++;
+  }
 
-    case 11:
-      return [
-        { player1Idx: 0, player2Idx: 1, scorerIdx: 2 }, // 1-2(3)
-        { player1Idx: 2, player2Idx: 3, scorerIdx: 4 }, // 3-4(5)
-        { player1Idx: 4, player2Idx: 5, scorerIdx: 6 }, // 5-6(7)
-        { player1Idx: 6, player2Idx: 7, scorerIdx: 8 }, // 7-8(9)
-        { player1Idx: 8, player2Idx: 9, scorerIdx: 10 }, // 9-10(11)
-        { player1Idx: 1, player2Idx: 10, scorerIdx: 3 }, // 2-11(4)
-        { player1Idx: 2, player2Idx: 5, scorerIdx: 7 }, // 3-6(8)
-        { player1Idx: 3, player2Idx: 4, scorerIdx: 9 }, // 4-5(10)
-        { player1Idx: 6, player2Idx: 9, scorerIdx: 0 }, // 7-10(1)
-        { player1Idx: 7, player2Idx: 8, scorerIdx: 1 }, // 8-9(2)
-        { player1Idx: 0, player2Idx: 9, scorerIdx: 5 }, // 1-10(6)
-        { player1Idx: 1, player2Idx: 3, scorerIdx: 4 }, // 2-4(5)
-        { player1Idx: 2, player2Idx: 6, scorerIdx: 8 }, // 3-7(9)
-        { player1Idx: 5, player2Idx: 10, scorerIdx: 7 }, // 6-11(8)
-        { player1Idx: 4, player2Idx: 8, scorerIdx: 2 }, // 5-9(3)
-        { player1Idx: 0, player2Idx: 7, scorerIdx: 6 }, // 1-8(7)
-        { player1Idx: 1, player2Idx: 5, scorerIdx: 9 }, // 2-6(10)
-        { player1Idx: 3, player2Idx: 9, scorerIdx: 10 }, // 4-10(11)
-        { player1Idx: 2, player2Idx: 8, scorerIdx: 4 }, // 3-9(5)
-        { player1Idx: 6, player2Idx: 10, scorerIdx: 0 }, // 7-11(1)
-        { player1Idx: 0, player2Idx: 4, scorerIdx: 3 }, // 1-5(4)
-        { player1Idx: 1, player2Idx: 6, scorerIdx: 2 }, // 2-7(3)
-        { player1Idx: 5, player2Idx: 8, scorerIdx: 7 }, // 6-9(8)
-        { player1Idx: 3, player2Idx: 10, scorerIdx: 9 }, // 4-11(10)
-        { player1Idx: 2, player2Idx: 7, scorerIdx: 1 }, // 3-8(2)
-        { player1Idx: 0, player2Idx: 3, scorerIdx: 8 }, // 1-4(9)
-        { player1Idx: 4, player2Idx: 9, scorerIdx: 5 }, // 5-10(6)
-        { player1Idx: 1, player2Idx: 8, scorerIdx: 10 }, // 2-9(11)
-        { player1Idx: 2, player2Idx: 10, scorerIdx: 6 }, // 3-11(7)
-        { player1Idx: 5, player2Idx: 7, scorerIdx: 0 }, // 6-8(1)
-        { player1Idx: 0, player2Idx: 2, scorerIdx: 4 }, // 1-3(5)
-        { player1Idx: 3, player2Idx: 8, scorerIdx: 1 }, // 4-9(2)
-        { player1Idx: 4, player2Idx: 10, scorerIdx: 7 }, // 5-11(8)
-        { player1Idx: 6, player2Idx: 8, scorerIdx: 9 }, // 7-9(10)
-        { player1Idx: 1, player2Idx: 7, scorerIdx: 3 }, // 2-8(4)
-        { player1Idx: 0, player2Idx: 5, scorerIdx: 2 }, // 1-6(3)
-        { player1Idx: 2, player2Idx: 9, scorerIdx: 8 }, // 3-10(9)
-        { player1Idx: 3, player2Idx: 7, scorerIdx: 10 }, // 4-8(11)
-        { player1Idx: 4, player2Idx: 6, scorerIdx: 1 }, // 5-7(2)
-        { player1Idx: 1, player2Idx: 2, scorerIdx: 5 }, // 2-3(6)
-        { player1Idx: 0, player2Idx: 10, scorerIdx: 6 }, // 1-11(7)
-        { player1Idx: 5, player2Idx: 9, scorerIdx: 4 }, // 6-10(5)
-        { player1Idx: 3, player2Idx: 6, scorerIdx: 2 }, // 4-7(3)
-        { player1Idx: 7, player2Idx: 10, scorerIdx: 8 }, // 8-11(9)
-        { player1Idx: 1, player2Idx: 4, scorerIdx: 0 }, // 2-5(1)
-        { player1Idx: 2, player2Idx: 5, scorerIdx: 3 }, // 3-6(4)
-        { player1Idx: 0, player2Idx: 8, scorerIdx: 7 }, // 1-9(8)
-        { player1Idx: 9, player2Idx: 10, scorerIdx: 1 }, // 10-11(2)
-        { player1Idx: 3, player2Idx: 5, scorerIdx: 6 }, // 4-6(7)
-        { player1Idx: 1, player2Idx: 9, scorerIdx: 2 }, // 2-10(3)
-        { player1Idx: 4, player2Idx: 7, scorerIdx: 8 }, // 5-8(9)
-        { player1Idx: 0, player2Idx: 6, scorerIdx: 10 }, // 1-7(11)
-        { player1Idx: 2, player2Idx: 4, scorerIdx: 9 }, // 3-5(10)
-        { player1Idx: 8, player2Idx: 10, scorerIdx: 5 }, // 9-11(6)
-      ];
+  if (!validOrder) {
+      console.warn(`Nem sikerült ${maxAttempts} próbálkozás alatt érvényes mérkőzéssorrendet találni.`);
+  }
 
-      case 12:
-        return [
-          { player1Idx: 0, player2Idx: 1, scorerIdx: 2 }, // 1-2(3)
-          { player1Idx: 2, player2Idx: 3, scorerIdx: 4 }, // 3-4(5)
-          { player1Idx: 4, player2Idx: 5, scorerIdx: 6 }, // 5-6(7)
-          { player1Idx: 6, player2Idx: 7, scorerIdx: 8 }, // 7-8(9)
-          { player1Idx: 8, player2Idx: 9, scorerIdx: 10 }, // 9-10(11)
-          { player1Idx: 10, player2Idx: 11, scorerIdx: 0 }, // 11-12(1)
-          { player1Idx: 1, player2Idx: 2, scorerIdx: 3 }, // 2-3(4)
-          { player1Idx: 3, player2Idx: 4, scorerIdx: 5 }, // 4-5(6)
-          { player1Idx: 5, player2Idx: 6, scorerIdx: 7 }, // 6-7(8)
-          { player1Idx: 7, player2Idx: 8, scorerIdx: 9 }, // 8-9(10)
-          { player1Idx: 9, player2Idx: 11, scorerIdx: 1 }, // 10-12(2)
-          { player1Idx: 0, player2Idx: 10, scorerIdx: 5 }, // 1-11(6)
-          { player1Idx: 1, player2Idx: 3, scorerIdx: 4 }, // 2-4(5)
-          { player1Idx: 2, player2Idx: 7, scorerIdx: 6 }, // 3-8(7)
-          { player1Idx: 4, player2Idx: 9, scorerIdx: 8 }, // 5-10(9)
-          { player1Idx: 6, player2Idx: 11, scorerIdx: 0 }, // 7-12(1)
-          { player1Idx: 8, player2Idx: 10, scorerIdx: 2 }, // 9-11(3)
-          { player1Idx: 0, player2Idx: 9, scorerIdx: 7 }, // 1-10(8)
-          { player1Idx: 1, player2Idx: 5, scorerIdx: 3 }, // 2-6(4)
-          { player1Idx: 3, player2Idx: 10, scorerIdx: 9 }, // 4-11(10)
-          { player1Idx: 2, player2Idx: 8, scorerIdx: 4 }, // 3-9(5)
-          { player1Idx: 7, player2Idx: 11, scorerIdx: 1 }, // 8-12(2)
-          { player1Idx: 0, player2Idx: 6, scorerIdx: 5 }, // 1-7(6)
-          { player1Idx: 4, player2Idx: 8, scorerIdx: 10 }, // 5-9(11)
-          { player1Idx: 2, player2Idx: 9, scorerIdx: 6 }, // 3-10(7)
-          { player1Idx: 3, player2Idx: 5, scorerIdx: 0 }, // 4-6(1)
-          { player1Idx: 1, player2Idx: 7, scorerIdx: 8 }, // 2-8(9)
-          { player1Idx: 0, player2Idx: 3, scorerIdx: 4 }, // 1-4(5)
-          { player1Idx: 6, player2Idx: 10, scorerIdx: 8 }, // 7-11(9)
-          { player1Idx: 5, player2Idx: 11, scorerIdx: 0 }, // 6-12(1)
-          { player1Idx: 8, player2Idx: 10, scorerIdx: 3 }, // 9-11(4)
-          { player1Idx: 0, player2Idx: 4, scorerIdx: 7 }, // 1-5(8)
-          { player1Idx: 2, player2Idx: 6, scorerIdx: 9 }, // 3-7(10)
-          { player1Idx: 3, player2Idx: 11, scorerIdx: 5 }, // 4-12(6)
-          { player1Idx: 7, player2Idx: 10, scorerIdx: 1 }, // 8-11(2)
-          { player1Idx: 9, player2Idx: 11, scorerIdx: 6 }, // 10-12(7)
-          { player1Idx: 0, player2Idx: 5, scorerIdx: 3 }, // 1-6(4)
-          { player1Idx: 1, player2Idx: 8, scorerIdx: 2 }, // 2-9(3)
-          { player1Idx: 4, player2Idx: 7, scorerIdx: 10 }, // 5-8(11)
-          { player1Idx: 3, player2Idx: 9, scorerIdx: 0 }, // 4-10(1)
-          { player1Idx: 1, player2Idx: 6, scorerIdx: 7 }, // 2-7(8)
-          { player1Idx: 0, player2Idx: 2, scorerIdx: 9 }, // 1-3(10)
-          { player1Idx: 5, player2Idx: 10, scorerIdx: 8 }, // 6-11(9)
-          { player1Idx: 2, player2Idx: 4, scorerIdx: 11 }, // 3-5(12)
-          { player1Idx: 7, player2Idx: 9, scorerIdx: 1 }, // 8-10(2)
-          { player1Idx: 3, player2Idx: 8, scorerIdx: 6 }, // 4-9(7)
-          { player1Idx: 0, player2Idx: 11, scorerIdx: 4 }, // 1-12(5)
-          { player1Idx: 1, player2Idx: 10, scorerIdx: 5 }, // 2-11(6)
-          { player1Idx: 6, player2Idx: 8, scorerIdx: 3 }, // 7-9(4)
-          { player1Idx: 2, player2Idx: 5, scorerIdx: 0 }, // 3-6(1)
-          { player1Idx: 4, player2Idx: 10, scorerIdx: 7 }, // 5-11(8)
-          { player1Idx: 3, player2Idx: 7, scorerIdx: 2 }, // 4-8(3)
-          { player1Idx: 1, player2Idx: 9, scorerIdx: 11 }, // 2-10(12)
-          { player1Idx: 0, player2Idx: 6, scorerIdx: 8 }, // 1-7(9)
-          { player1Idx: 5, player2Idx: 11, scorerIdx: 4 }, // 6-12(5)
-          { player1Idx: 2, player2Idx: 3, scorerIdx: 10 }, // 3-4(11)
-          { player1Idx: 7, player2Idx: 10, scorerIdx: 1 }, // 8-11(2)
-          { player1Idx: 8, player2Idx: 9, scorerIdx: 6 }, // 9-10(7)
-          { player1Idx: 0, player2Idx: 4, scorerIdx: 5 }, // 1-5(6)
-          { player1Idx: 1, player2Idx: 3, scorerIdx: 2 }, // 2-4(3)
-          { player1Idx: 6, player2Idx: 9, scorerIdx: 7 }, // 7-10(8)
-          { player1Idx: 5, player2Idx: 11, scorerIdx: 0 }, // 6-12(1)
-          { player1Idx: 2, player2Idx: 8, scorerIdx: 3 }, // 3-9(4)
-          { player1Idx: 4, player2Idx: 10, scorerIdx: 1 }, // 5-11(2)
-          { player1Idx: 7, player2Idx: 11, scorerIdx: 8 }, // 8-12(9)
-          { player1Idx: 3, player2Idx: 10, scorerIdx: 6 }, // 4-11(7)
-          { player1Idx: 1, player2Idx: 5, scorerIdx: 9 }, // 2-6(10)
-          { player1Idx: 0, player2Idx: 2, scorerIdx: 4 }, // 1-3(5)
-          { player1Idx: 3, player2Idx: 6, scorerIdx: 11 }, // 4-7(12)
-          { player1Idx: 8, player2Idx: 10, scorerIdx: 0 }, // 9-11(1)
-          { player1Idx: 9, player2Idx: 11, scorerIdx: 5 }, //10-12(6)
-          { player1Idx: 2, player2Idx: 7, scorerIdx: 3 }, // 3-8(4)
-          { player1Idx: 1, player2Idx: 4, scorerIdx: 10 }, // 2-5(11)
-          { player1Idx: 0, player2Idx: 8, scorerIdx: 7 }, // 1-9(8)
-          { player1Idx: 5, player2Idx: 9, scorerIdx: 6 }, // 6-10(7)
-        ]}}
+  // Pontozók kiosztása egyenletes eloszlással
+  const scorerCounts: { [key: number]: number } = {};
+  for (let i = 0; i < playerCount; i++) {
+      scorerCounts[i] = 0;
+  }
+
+  const finalMatches: { player1Idx: number; player2Idx: number; scorerIdx: number }[] = matches.map(match => {
+      // Lehetséges írók (nem játszó játékosok)
+      const possibleScorers: number[] = [];
+      for (let k = 0; k < playerCount; k++) {
+          if (k !== match.player1Idx && k !== match.player2Idx) {
+              possibleScorers.push(k);
+          }
+      }
+
+      // Író választása: először azok, akik még nem voltak írók, majd a legkevesebb írói szereppel rendelkező
+      let selectedScorer = -1;
+      let minScorerCount = Infinity;
+      const neverScored = possibleScorers.filter(s => scorerCounts[s] === 0);
+
+      if (neverScored.length > 0) {
+          // Ha van olyan, aki még nem volt író, véletlenszerűen választunk közülük
+          selectedScorer = neverScored[Math.floor(Math.random() * neverScored.length)];
+      } else {
+          // Különben a legkevesebb írói szereppel rendelkező közül választunk
+          possibleScorers.forEach(s => {
+              if (scorerCounts[s] < minScorerCount) {
+                  minScorerCount = scorerCounts[s];
+                  selectedScorer = s;
+              } else if (scorerCounts[s] === minScorerCount && Math.random() < 0.5) {
+                  selectedScorer = s;
+              }
+          });
+      }
+
+      // Frissítjük az írói számlálót
+      scorerCounts[selectedScorer]++;
+      return { ...match, scorerIdx: selectedScorer };
+  });
+
+  // Ellenőrizzük, hogy minden játékos legalább egyszer író-e
+  const allScored = Object.values(scorerCounts).every(count => count >= 1);
+  if (!allScored) {
+      console.warn("Nem minden játékos volt legalább egyszer író:", scorerCounts);
+  }
+
+  return finalMatches;
+}
 
 export async function POST(request: Request, { params }: { params: { code: string } }) {
   try {
     await connectMongo();
     const { TournamentModel, BoardModel, MatchModel } = getModels();
-    const { code } = await params;
+    const { code } = params;
 
     const tournament = await TournamentModel.findOne({ code });
     if (!tournament) {
       return NextResponse.json({ error: "Torna nem található" }, { status: 404 });
     }
 
-    if (tournament.status !== "created") {
-      return NextResponse.json({ error: "A torna már elindult vagy befejeződött" }, { status: 400 });
+    if (tournament.status === "finished") {
+      return NextResponse.json({ error: "A torna már befejeződött" }, { status: 400 });
     }
+
+    // Töröljük az összes meglévő mérkőzést
+    await MatchModel.deleteMany({ tournamentId: tournament._id });
+
+    // Töröljük a meglévő csoportokat
+    tournament.groups = [];
+    await tournament.save();
 
     const players = [...tournament.players];
     const boardCount = tournament.boardCount;
     const playersPerGroup = Math.ceil(players.length / boardCount);
 
+    // Játékosok véletlenszerű keverése
     for (let i = players.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [players[i], players[j]] = [players[j], players[i]];
@@ -392,7 +173,7 @@ export async function POST(request: Request, { params }: { params: { code: strin
           player1: numberedPlayers[player1Idx].playerId,
           player2: numberedPlayers[player2Idx].playerId,
           scorer: numberedPlayers[scorerIdx].playerId,
-          status: 'pending',
+          status: "pending",
         });
 
         matches.push(match._id);
@@ -401,9 +182,11 @@ export async function POST(request: Request, { params }: { params: { code: strin
       groups.push({
         players: numberedPlayers,
         matches,
+        standings: [], // Inicializáljuk üresen, ha szükséges
       });
     }
 
+    // Töröljük és újrageneráljuk a táblákat
     await BoardModel.deleteMany({ tournamentId: tournament._id });
     const boards = [];
     for (let i = 1; i <= boardCount; i++) {
@@ -421,9 +204,9 @@ export async function POST(request: Request, { params }: { params: { code: strin
     tournament.status = "group";
     await tournament.save();
 
-    return NextResponse.json({ message: "Csoportok és mérkőzések sikeresen kiosztva" });
+    return NextResponse.json({ message: "Csoportok és mérkőzések sikeresen újragenerálva" });
   } catch (error) {
-    console.error("Hiba a csoportok kiosztásakor:", error);
-    return NextResponse.json({ error: "Nem sikerült a csoportok kiosztása" }, { status: 500 });
+    console.error("Hiba a csoportok újragenerálásakor:", error);
+    return NextResponse.json({ error: "Nem sikerült a csoportok újragenerálása" }, { status: 500 });
   }
 }

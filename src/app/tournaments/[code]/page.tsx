@@ -49,6 +49,10 @@ interface Match {
   player2: { _id: string; name: string };
   scorer?: { _id: string; name: string };
   status: "pending" | "ongoing" | "finished";
+  stats?: {
+    player1: { legsWon: number };
+    player2: { legsWon: number };
+  }
 }
 
 interface Group {
@@ -76,11 +80,24 @@ interface Board {
   status: "idle" | "waiting" | "playing";
   waitingPlayers: Player[];
   nextMatch?: {
+    player1Name?: string
+    player2Name?: string;
+    scribeName?: string;
     player1: { _id: string; name: string };
     player2: { _id: string; name: string };
     scorer?: { _id: string; name: string };
   };
+  currentMatch?: {
+    player1Name: string;
+    player2Name: string;
+    scribeName: string;
+    stats: {
+      player1Legs: number;
+      player2Legs: number;
+    };
+  };
 }
+
 
 export default function TournamentDetailsPage() {
   const { code } = useParams();
@@ -91,6 +108,8 @@ export default function TournamentDetailsPage() {
   const [sortBy, setSortBy] = useState<"name" | "ranking">("name");
   const [playerSuggestions, setPlayerSuggestions] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
+  const [matchFilter, setMatchFilter] = useState<"all" | "pending" | "ongoing" | "finished">("all");
+  const [secondsUntilRefresh, setSecondsUntilRefresh] = useState(10); // Új állapot a visszaszámláláshoz
 
   const passwordForm = useForm<PasswordForm>({
     resolver: zodResolver(passwordSchema),
@@ -109,7 +128,6 @@ export default function TournamentDetailsPage() {
       const res = await fetch(`/api/tournaments/${code}`);
       if (!res.ok) throw new Error("Nem sikerült a torna lekérése");
       const data = await res.json();
-      console.log("API Response:", data);
       setTournament(data.tournament);
       setBoards(data.boards);
     } catch (error: any) {
@@ -123,19 +141,29 @@ export default function TournamentDetailsPage() {
   useEffect(() => {
     fetchTournament();
 
-    const intervalId = setInterval(async () => {
+    // Polling intervallum (10 másodperc)
+    const pollingIntervalId = setInterval(async () => {
       try {
         const res = await fetch(`/api/tournaments/${code}`);
         if (!res.ok) return;
         const data = await res.json();
-        console.log("Polling Response:", data);
         setTournament(data.tournament);
         setBoards(data.boards);
+        setSecondsUntilRefresh(10); // Visszaállítjuk a visszaszámlálót
       } catch (error) {
         console.error("Hiba a táblák pollingja során:", error);
       }
-    }, 10000); // Reduced to 10 seconds for faster testing
-    return () => clearInterval(intervalId);
+    }, 10000);
+
+    // Visszaszámláló időzítő (1 másodperc)
+    const countdownIntervalId = setInterval(() => {
+      setSecondsUntilRefresh((prev) => (prev > 0 ? prev - 1 : 10));
+    }, 1000);
+
+    return () => {
+      clearInterval(pollingIntervalId);
+      clearInterval(countdownIntervalId);
+    };
   }, [code]);
 
   // Jelszó ellenőrzése
@@ -220,8 +248,8 @@ export default function TournamentDetailsPage() {
     }
   };
 
-  // Csoportok kiosztása
-  const assignGroups = async () => {
+  // Csoportok újragenerálása
+  const regenerateGroups = async () => {
     setLoading(true);
     try {
       const res = await fetch(`/api/tournaments/${code}/assign-groups`, {
@@ -230,12 +258,12 @@ export default function TournamentDetailsPage() {
       });
       if (!res.ok) {
         const error = await res.json();
-        throw new Error(error.error || "Nem sikerült a csoportok kiosztása");
+        throw new Error(error.error || "Nem sikerült a csoportok újragenerálása");
       }
       await fetchTournament();
-      toast.success("Csoportok és mérkőzések sikeresen kiosztva");
+      toast.success("Csoportok és mérkőzések sikeresen újragenerálva");
     } catch (error: any) {
-      toast.error(error.message || "Nem sikerült a csoportok kiosztása");
+      toast.error(error.message || "Nem sikerült a csoportok újragenerálása");
     } finally {
       setLoading(false);
     }
@@ -269,46 +297,36 @@ export default function TournamentDetailsPage() {
     const totalPlayers = tournament.players.length;
     const groupsCount = tournament.groups.length;
     if (groupsCount === 0) return [];
-  
-    // Calculate qualifying players (closest power of 2 <= totalPlayers)
+
     const qualifyingPlayers = Math.pow(2, Math.floor(Math.log2(totalPlayers)));
     const eliminatedPlayersCount = totalPlayers - qualifyingPlayers;
-  
-    // Get group sizes
+
     const groupSizes = tournament.groups.map((group) => group.players?.length || 0);
     const totalGroupPlayers = groupSizes.reduce((sum, size) => sum + size, 0);
-  
-    // Distribute eliminations based on group size proportion
+
     const eliminationsPerGroup = groupSizes.map((size) =>
       Math.round((size / totalGroupPlayers) * eliminatedPlayersCount)
     );
-  
-    // Adjust to ensure total eliminations match eliminatedPlayersCount
+
     let currentTotal = eliminationsPerGroup.reduce((sum, count) => sum + count, 0);
     while (currentTotal !== eliminatedPlayersCount) {
       const diff = eliminatedPlayersCount - currentTotal;
-      const indexToAdjust = diff > 0 ? 
-        groupSizes.findIndex((size, i) => eliminationsPerGroup[i] < size) : 
-        groupSizes.findIndex((size, i) => eliminationsPerGroup[i] > 0);
+      const indexToAdjust = diff > 0
+        ? groupSizes.findIndex((size, i) => eliminationsPerGroup[i] < size)
+        : groupSizes.findIndex((size, i) => eliminationsPerGroup[i] > 0);
       if (indexToAdjust === -1) break;
       eliminationsPerGroup[indexToAdjust] += diff > 0 ? 1 : -1;
       currentTotal += diff > 0 ? 1 : -1;
     }
-  
+
     const group = tournament.groups[groupIndex];
     const eliminatedInGroup = eliminationsPerGroup[groupIndex] || 0;
-  
+
     if (!group.standings || eliminatedInGroup <= 0) return [];
-  
-    // Sort standings by rank and get bottom players
+
     const sortedStandings = [...group.standings].sort((a, b) => (a.rank || 0) - (b.rank || 0));
     const eliminatedPlayers = sortedStandings.slice(-eliminatedInGroup).map((s) => s.playerId._id);
-  
-    console.log(
-      `Eliminated players for group ${groupIndex + 1} (eliminate ${eliminatedInGroup}):`,
-      eliminatedPlayers
-    );
-  
+
     return eliminatedPlayers;
   };
 
@@ -332,50 +350,60 @@ export default function TournamentDetailsPage() {
     <main className="min-h-screen bg-base-200 w-full">
       <div className="container mx-auto p-4 flex flex-col md:flex-row gap-4">
         {/* Sidebar */}
-        <div className={`drawer md:drawer-open ${isSidebarOpen ? "drawer-open" : ""} md:w-1/3`}>
-          <input id="sidebar" type="checkbox" className="drawer-toggle" checked={isSidebarOpen} />
-          <div className="drawer-content md:hidden">
-            <label htmlFor="sidebar" className="btn btn-primary drawer-button">
-              Sidebar {isSidebarOpen ? "bezárása" : "megnyitása"}
-            </label>
-          </div>
-          <div className="drawer-side">
-            <label htmlFor="sidebar" className="drawer-overlay" onClick={() => setIsSidebarOpen(false)}></label>
-            <div className="bg-base-100 p-4 h-full">
-              <h2 className="text-xl font-bold mb-4">Játékosok</h2>
-              <div className="flex gap-2 mb-4">
-                <button
-                  className={`btn btn-sm ${sortBy === "name" ? "btn-primary" : "btn-outline"}`}
-                  onClick={() => setSortBy("name")}
-                >
-                  Betűrend
-                </button>
-                <button
-                  className={`btn btn-sm ${sortBy === "ranking" ? "btn-primary" : "btn-outline"}`}
-                  onClick={() => setSortBy("ranking")}
-                >
-                  Helyezés
-                </button>
-              </div>
-              <ul className="space-y-2">
-                {sortedPlayers.map((player) => (
-                  <li key={player._id} className="flex justify-between items-center">
-                    <span>{player.name}</span>
-                    {isModerator && (
-                      <button
-                        className="btn btn-error btn-xs"
-                        onClick={() => removePlayer(player._id)}
-                        disabled={loading}
-                      >
-                        ✕
-                      </button>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </div>
+        <div className={`sidebar md:w-1/4 ${isSidebarOpen ? "sidebar-open" : "sidebar-closed"}`}>
+        {/* Mobil nézet: Toggle gomb */}
+        <div className="sidebar-content md:hidden">
+          <button
+            className="btn btn-primary"
+            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+          >
+            Sidebar {isSidebarOpen ? "bezárása" : "megnyitása"}
+          </button>
         </div>
+        {/* Oldalsáv panel */}
+        <div className={`sidebar-panel bg-base-100 w-full p-4 h-full ${isSidebarOpen ? "block" : "hidden md:block"}`}>
+          {/* Overlay mobil nézetben */}
+          {isSidebarOpen && (
+            <div
+              className="sidebar-overlay fixed inset-0 bg-black/50 z-40 md:hidden"
+              onClick={() => setIsSidebarOpen(false)}
+            ></div>
+          )}
+          <h2 className="text-xl font-bold mb-4">Játékosok</h2>
+          <div className="flex gap-2 mb-4 items-center justify-between">
+          <button
+                className={`btn btn-sm btn-outline`}
+                onClick={() => setSortBy("name")}
+              >
+                Betűrend
+              </button>
+              <span className="text-sm font-medium">
+                Következő frissítés: {secondsUntilRefresh} mp
+              </span>
+          </div>
+          <ul className="space-y-3">
+            {sortedPlayers.map((player, index) => (
+              <li
+                key={player._id}
+                className={`flex justify-between items-center py-1 px-2 rounded-md  ${
+                  index % 2 === 0 ? "bg-base-200" : ""
+                } hover:bg-primary/10 transition-colors`}
+              >
+                <span className="text-base font-medium">{player.name}</span>
+                {isModerator && (
+                  <button
+                    className="btn btn-error btn-sm"
+                    onClick={() => removePlayer(player._id)}
+                    disabled={loading}
+                  >
+                    Törlés
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
 
         {/* Fő tartalom */}
         <div className="flex-1">
@@ -480,10 +508,10 @@ export default function TournamentDetailsPage() {
                   <div className="flex flex-wrap gap-2">
                     <button
                       className="btn btn-primary"
-                      onClick={assignGroups}
-                      disabled={loading || tournament.status !== "created"}
+                      onClick={regenerateGroups}
+                      disabled={loading || tournament.status === "finished"}
                     >
-                      Csoportok kiosztása
+                      Csoportok újragenerálása
                     </button>
                     <button
                       className="btn btn-success"
@@ -518,68 +546,131 @@ export default function TournamentDetailsPage() {
                 ) : (
                   <div className="space-y-4 mt-4">
                     {tournament.groups.map((group, index) => {
-                      console.log(`Group ${index + 1}:`, group);
                       const eliminatedPlayers = getEliminatedPlayers(index);
                       return (
                         <div key={group._id} className="card bg-base-200 shadow-md">
                           <div className="card-body">
                             <h3 className="card-title">Csoport {index + 1} (Tábla {index + 1})</h3>
-                            <table className="table w-full">
-                              <thead>
-                                <tr>
-                                  <th>Sorszám</th>
-                                  <th>Név</th>
-                                  <th>Helyezés</th>
-                                  <th>Pontok</th>
-                                  <th>Legek</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {group.players && group.players.length > 0 ? (
-                                  group.players.map((player) => {
-                                    const standing = group.standings?.find(
-                                      (s) => s.playerId._id.toString() === player.playerId._id.toString()
-                                    );
-                                    const isEliminated = eliminatedPlayers.includes(
-                                      player.playerId._id.toString()
-                                    );
-                                    console.log(`Player ${player.playerId.name}:`, { standing, isEliminated });
-                                    return (
-                                      <tr key={player.playerId._id}>
-                                        <td>{player.number || "-"}</td>
-                                        <td className={isEliminated ? "text-error" : ""}>
-                                          {player.playerId.name || "Ismeretlen"}
-                                        </td>
-                                        <td>{standing?.rank || "-"}</td>
-                                        <td>{standing?.points || 0}</td>
-                                        <td>
-                                          {standing ? `${standing.legsWon}/${standing.legsLost}` : "-"}
-                                        </td>
-                                      </tr>
-                                    );
-                                  })
-                                ) : (
+                            <div className="overflow-x-scroll">
+                              <table className="table w-full">
+                                <thead>
                                   <tr>
-                                    <td colSpan={5}>Nincsenek játékosok a csoportban.</td>
+                                    <th>Helyezés</th>
+                                    <th>Név</th>
+                                    <th>Pontok</th>
+                                    <th>Legek</th>
                                   </tr>
-                                )}
-                              </tbody>
-                            </table>
-                            <h4 className="font-semibold mt-4">Hátralévő mérkőzések:</h4>
+                                </thead>
+                                <tbody>
+                                  {group.players && group.players.length > 0 ? (
+                                    group.players
+                                      .map((player) => {
+                                        const standing = group.standings?.find(
+                                          (s) => s.playerId._id.toString() === player.playerId._id.toString()
+                                        );
+                                        return {
+                                          player,
+                                          standing,
+                                          rank: standing?.rank || Infinity, // Ha nincs helyezés, végtelenre állítjuk a rendezéshez
+                                        };
+                                      })
+                                      .sort((a, b) => a.rank - b.rank) // Rendezés helyezés szerint
+                                      .map(({ player, standing }, index) => {
+                                        const isEliminated = eliminatedPlayers.includes(player.playerId._id.toString());
+                                        return (
+                                          <tr
+                                            key={player.playerId._id}
+                                            className={isEliminated ? "bg-red-800 text-white" : ""}
+                                          >
+                                            <td>{standing?.rank || "-"}</td>
+                                            <td>{player.playerId.name || "Ismeretlen"}</td>
+                                            <td>{standing?.points || 0}</td>
+                                            <td>{standing ? `${standing.legsWon}/${standing.legsLost}` : "-"}</td>
+                                          </tr>
+                                        );
+                                      })
+                                  ) : (
+                                    <tr>
+                                      <td colSpan={4}>Nincsenek játékosok a csoportban.</td>
+                                    </tr>
+                                  )}
+                                </tbody>
+                              </table>
+                            </div>
+                            <h4 className="font-semibold mt-4">Mérkőzések:</h4>
+                            <div className="mb-4">
+                              <label className="label">
+                                <span className="label-text">Szűrés állapot szerint:</span>
+                              </label>
+                              <select
+                                className="select select-bordered w-full max-w-xs"
+                                value={matchFilter}
+                                onChange={(e) => setMatchFilter(e.target.value as any)}
+                              >
+                                <option value="all">Összes</option>
+                                <option value="pending">Függőben</option>
+                                <option value="ongoing">Folyamatban</option>
+                                <option value="finished">Befejezve</option>
+                              </select>
+                            </div>
                             {group.matches && group.matches.length > 0 ? (
-                              <ul className="list-disc pl-5">
-                                {group.matches
-                                  .filter((match) => match.status === "pending")
-                                  .map((match, matchIndex) => (
-                                    <li key={match._id || matchIndex}>
-                                      {(match.player1?.name || "Ismeretlen")} -{" "}
-                                      {(match.player2?.name || "Ismeretlen")} (Eredményíró:{" "}
-                                      {match.scorer?.name || "Nincs"})
-                                    </li>
-                                  ))}
-                              </ul>
+                              <div className="overflow-x-auto">
+                                <table className="table w-full">
+                                  <thead>
+                                    <tr>
+                                      <th>Sorszám</th>
+                                      <th>Játékosok</th>
+                                      <th>Pontozó</th>
+                                      <th>Állapot</th>
+                                      <th>Eredmény</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {group.matches
+                                      .filter((match) =>
+                                        matchFilter === "all" ? true : match.status === matchFilter
+                                      )
+                                      .map((match, matchIndex) => (
+                                        <tr key={match._id || matchIndex}>
+                                          <td>{matchIndex + 1}</td>
+                                          <td>
+                                            {(match.player1?.name || "Ismeretlen")} vs{" "}
+                                            {(match.player2?.name || "Ismeretlen")}
+                                          </td>
+                                          <td>{match.scorer?.name || "Nincs"}</td>
+                                          <td>
+                                            <span
+                                              className={`badge ${
+                                                match.status === "pending"
+                                                  ? "badge-warning"
+                                                  : match.status === "ongoing"
+                                                  ? "badge-info"
+                                                  : "badge-success"
+                                              }`}
+                                            >
+                                              {match.status === "pending"
+                                                ? "Függőben"
+                                                : match.status === "ongoing"
+                                                ? "Folyamatban"
+                                                : "Befejezve"}
+                                            </span>
+                                          </td>
+                                          <td>
+                                            {(match.status === "finished" || match.status === "ongoing") && match.stats ? (
+                                              <span className="badge badge-neutral">
+                                                {match.stats.player1.legsWon}-{match.stats.player2.legsWon}
+                                              </span>
+                                            ) : (
+                                              "-"
+                                            )}
+                                          </td>
+                                        </tr>
+                                      ))}
+                                  </tbody>
+                                </table>
+                              </div>
                             ) : (
-                              <p>Nincsenek hátralévő mérkőzések.</p>
+                              <p>Nincsenek mérkőzések a csoportban.</p>
                             )}
                           </div>
                         </div>
@@ -600,7 +691,15 @@ export default function TournamentDetailsPage() {
                       <div key={board._id} className="card bg-base-200 shadow-md">
                         <div className="card-body">
                           <h3 className="card-title">Tábla {board.boardNumber}</h3>
-                          <p>
+                          <p
+                            className={`text-lg font-bold ${
+                              board.status === "idle"
+                                ? "text-gray-500"
+                                : board.status === "waiting"
+                                ? "text-warning"
+                                : "text-success"
+                            }`}
+                          >
                             Állapot:{" "}
                             {board.status === "idle"
                               ? "Üres"
@@ -608,34 +707,54 @@ export default function TournamentDetailsPage() {
                               ? "Várakozik"
                               : "Játékban"}
                           </p>
-                          {board.status === "waiting" && board.nextMatch ? (
-                            <div>
-                              <h4>Várakozik a következő játékosokra:</h4>
-                              <ul className="list-disc pl-5">
-                              
-                                <li>{board.nextMatch.player1.name || "Ismeretlen"}</li>
-                                <li>{board.nextMatch.player2.name || "Ismeretlen"}</li>
-                              </ul>
-                              <h4>Várakozik az eredményíróra:</h4>
-                              <p className="pl-5">{board.nextMatch.scorer?.name || "Nincs"}</p>
+                          {board.status === "playing" && board.currentMatch ? (
+                            <div className="mt-2">
+                              <h4 className="font-semibold">Jelenlegi mérkőzés:</h4>
+                              <p className="text-md">
+                                <span className="font-bold">{board.currentMatch.player1Name}</span> vs{" "}
+                                <span className="font-bold">{board.currentMatch.player2Name}</span>
+                              </p>
+                              <p className="text-md">
+                                Állás:{" "}
+                                <span className="font-bold">
+                                  {board.currentMatch.stats.player1Legs} - {board.currentMatch.stats.player2Legs}
+                                </span>
+                              </p>
+                              <p className="text-md">
+                                Eredményíró: <span className="font-bold">{board.currentMatch.scribeName}</span>
+                              </p>
+                            </div>
+                          ) : board.status === "waiting" && board.nextMatch ? (
+                            <div className="mt-2">
+                              <h4 className="">Következő mérkőzés:</h4>
+                              <p className="text-md">
+                                <span className="font-bold">{board.nextMatch.player1Name}</span> vs{" "}
+                                <span className="font-bold">{board.nextMatch.player2Name}</span>
+                              </p>
+                              <p className="text-md">
+                                Eredményíró: <span className="font-bold">{board.nextMatch.scribeName}</span>
+                              </p>
                             </div>
                           ) : board.waitingPlayers && board.waitingPlayers.length > 0 ? (
-                            <div>
-                              <h4>Várakozó játékosok:</h4>
+                            <div className="mt-2">
+                              <h4 className="font-semibold">Várakozó játékosok:</h4>
                               <ul className="list-disc pl-5">
                                 {board.waitingPlayers.map((player) => (
-                                  <li key={player._id}>{player.name || "Ismeretlen"}</li>
+                                  <li key={player._id} className="text-md">
+                                    {player.name || "Ismeretlen"}
+                                  </li>
                                 ))}
                               </ul>
                             </div>
-                          ) : null}
+                          ) : (
+                            <p className="text-md italic">Nincs további információ.</p>
+                          )}
                         </div>
                       </div>
                     ))}
                   </div>
                 )}
               </div>
-
               {/* Főtábla placeholder */}
               <div className="mt-6">
                 <h2 className="text-xl font-bold">Főtábla</h2>

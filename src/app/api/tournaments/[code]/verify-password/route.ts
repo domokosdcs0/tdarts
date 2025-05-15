@@ -18,7 +18,6 @@ export async function POST(request: Request, { params }: { params: { code: strin
     if (!tournament) {
       return NextResponse.json({ error: "Torna nem található" }, { status: 404 });
     }
-
     if (tournament.tournamentPassword !== password) {
       return NextResponse.json({ error: "Helytelen jelszó" }, { status: 401 });
     }

@@ -1,4 +1,3 @@
-// BoardPage.tsx
 'use client';
 
 import { useEffect, useState } from "react";
@@ -6,6 +5,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { toast } from "react-hot-toast";
+import DartsCounter from "@/components/dartsCounter";
 
 const validateSchema = z.object({
   code: z.string().min(1, "A torna kód megadása kötelező"),
@@ -152,25 +152,30 @@ export default function BoardPage() {
   };
 
   // Mérkőzés befejezése
-  const handleFinishMatch = async () => {
+  const handleFinishMatch = async (finalStats: {
+    winnerId: string;
+    player1Stats: { legsWon: number; dartsThrown: number; average: number; checkoutRate: number };
+    player2Stats: { legsWon: number; dartsThrown: number; average: number; checkoutRate: number };
+  }) => {
     if (!nextMatch?.matchId || !boardId || !selectedBoard) return;
     setLoading(true);
-    console.log("Finishing match with data:", nextMatch);
     try {
       const matchResult = {
-        winnerId: nextMatch.player1Id,
-        player1LegsWon: 3,
-        player2LegsWon: 1,
+        winnerId: finalStats.winnerId,
+        player1LegsWon: finalStats.player1Stats.legsWon,
+        player2LegsWon: finalStats.player2Stats.legsWon,
         stats: {
           player1: {
-            legsWon: 3,
-            dartsThrown: 60,
-            average: 80.25,
+            legsWon: finalStats.player1Stats.legsWon,
+            dartsThrown: finalStats.player1Stats.dartsThrown,
+            average: finalStats.player1Stats.average,
+            checkoutRate: finalStats.player1Stats.checkoutRate,
           },
           player2: {
-            legsWon: 1,
-            dartsThrown: 50,
-            average: 70.5,
+            legsWon: finalStats.player2Stats.legsWon,
+            dartsThrown: finalStats.player2Stats.dartsThrown,
+            average: finalStats.player2Stats.average,
+            checkoutRate: finalStats.player2Stats.checkoutRate,
           },
         },
       };
@@ -327,19 +332,23 @@ export default function BoardPage() {
               </button>
             </div>
           ) : (
-            <div className="text-center">
-              <h2 className="text-3xl font-bold mb-4">Darts Counter (Placeholder)</h2>
-              <p>Mérkőzés: {nextMatch?.player1Name} vs. {nextMatch?.player2Name}</p>
-              <p>Eredményíró: {nextMatch?.scribeName}</p>
-              <p className="mt-4">Itt lesz a 501-es visszaszámláló és statisztikák.</p>
-              <button
-                className="btn btn-error btn-lg mt-4"
-                onClick={handleFinishMatch}
-                disabled={loading}
-              >
-                {loading ? <span className="loading loading-spinner"></span> : "Mérkőzés befejezése"}
-              </button>
-            </div>
+            <DartsCounter
+              match={{
+                matchId: nextMatch.matchId,
+                player1Id: nextMatch.player1Id,
+                player2Id: nextMatch.player2Id,
+                player1Name: nextMatch.player1Name,
+                player2Name: nextMatch.player2Name,
+                scribeName: nextMatch.scribeName,
+                stats: nextMatch.stats || {
+                  player1: { average: 0, checkoutRate: 0, dartsThrown: 0, legsWon: 0 },
+                  player2: { average: 0, checkoutRate: 0, dartsThrown: 0, legsWon: 0 },
+                },
+              }}
+              boardId={boardId!}
+              selectedBoard={selectedBoard!}
+              handleFinishMatch={handleFinishMatch}
+            />
           )}
         </div>
       )}
