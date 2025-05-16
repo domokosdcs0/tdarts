@@ -105,26 +105,34 @@ export default function BoardPage() {
     if (!tournamentId || !boardNumber) return;
     try {
       const matchRes = await fetch(`/api/boards/${tournamentId}/${boardNumber}/current-match`);
-      if (!matchRes.ok) {
-        const error = await matchRes.json();
-        if (error.error === "Nincs folyamatban lévő mérkőzés") {
-          const nextMatchRes = await fetch(`/api/boards/${tournamentId}/${boardNumber}/next-match`);
-          if (!nextMatchRes.ok) {
-            const nextError = await nextMatchRes.json();
-            throw new Error(nextError.error || "Nem sikerült a mérkőzés lekérése");
-          }
-          const matchData = await nextMatchRes.json();
-          setNextMatch(matchData);
-          setIsReady(false);
-          return;
-        }
-        throw new Error(error.error || "Nem sikerült a mérkőzés lekérése");
+      if (matchRes.ok) {
+        const matchData = await matchRes.json();
+        setNextMatch(matchData);
+        setIsReady(true);
+        localStorage.setItem("matchId", matchData.matchId);
+        localStorage.setItem("isReady", "true");
+        return;
       }
-      const matchData = await matchRes.json();
-      setNextMatch(matchData);
-      setIsReady(true);
+      const error = await matchRes.json();
+      if (error.error === "Nincs folyamatban lévő mérkőzés") {
+        const nextMatchRes = await fetch(`/api/boards/${tournamentId}/${boardNumber}/next-match`);
+        if (!nextMatchRes.ok) {
+          const nextError = await nextMatchRes.json();
+          throw new Error(nextError.error || "Nem sikerült a mérkőzés lekérése");
+        }
+        const matchData = await nextMatchRes.json();
+        setNextMatch(matchData);
+        setIsReady(false);
+        localStorage.setItem("matchId", matchData.matchId || "");
+        localStorage.setItem("isReady", "false");
+        return;
+      }
+      throw new Error(error.error || "Nem sikerült a mérkőzés lekérése");
     } catch (error: any) {
       console.error("Hiba a folyamatban lévő mérkőzés ellenőrzésekor:", error);
+      setNextMatch({ noMatch: true });
+      localStorage.removeItem("matchId");
+      localStorage.setItem("isReady", "false");
     }
   };
 
@@ -143,6 +151,8 @@ export default function BoardPage() {
         throw new Error(error.error || "Nem sikerült a mérkőzés indítása");
       }
       setIsReady(true);
+      localStorage.setItem("isReady", "true");
+      localStorage.setItem("matchId", nextMatch.matchId);
       toast.success("Mérkőzés elindítva");
     } catch (error: any) {
       toast.error(error.message || "Nem sikerült a mérkőzés indítása");
@@ -154,8 +164,10 @@ export default function BoardPage() {
   // Mérkőzés befejezése
   const handleFinishMatch = async (finalStats: {
     winnerId: string;
-    player1Stats: { legsWon: number; dartsThrown: number; average: number; checkoutRate: number };
-    player2Stats: { legsWon: number; dartsThrown: number; average: number; checkoutRate: number };
+    player1Stats: { legsWon: number; dartsThrown: number; average: number };
+    player2Stats: { legsWon: number; dartsThrown: number; average: number };
+    highestCheckout: { player1: number; player2: number };
+    oneEighties: { player1: { count: number; darts: number[] }; player2: { count: number; darts: number[] } };
   }) => {
     if (!nextMatch?.matchId || !boardId || !selectedBoard) return;
     setLoading(true);
@@ -169,15 +181,15 @@ export default function BoardPage() {
             legsWon: finalStats.player1Stats.legsWon,
             dartsThrown: finalStats.player1Stats.dartsThrown,
             average: finalStats.player1Stats.average,
-            checkoutRate: finalStats.player1Stats.checkoutRate,
           },
           player2: {
             legsWon: finalStats.player2Stats.legsWon,
             dartsThrown: finalStats.player2Stats.dartsThrown,
             average: finalStats.player2Stats.average,
-            checkoutRate: finalStats.player2Stats.checkoutRate,
           },
         },
+        highestCheckout: finalStats.highestCheckout,
+        oneEighties: finalStats.oneEighties,
       };
 
       console.log("Sending match result:", matchResult);
@@ -194,6 +206,8 @@ export default function BoardPage() {
       const { nextMatch: newMatch } = await res.json();
       setNextMatch(newMatch || { noMatch: true });
       setIsReady(false);
+      localStorage.setItem("isReady", "false");
+      localStorage.setItem("matchId", newMatch?.matchId || "");
 
       // Fetch the next match immediately
       await checkOngoingMatch(selectedBoard);
@@ -220,8 +234,52 @@ export default function BoardPage() {
     const storedBoardNumber = localStorage.getItem("boardNumber");
     const storedCode = localStorage.getItem("tournamentCode");
     const storedPassword = localStorage.getItem("tournamentPassword");
+    const storedMatchId = localStorage.getItem("matchId");
+    const storedIsReady = localStorage.getItem("isReady") === "true";
 
-    console.log("Stored data:", { storedTournamentId, storedBoardNumber, storedCode, storedPassword });
+    console.log("Stored data:", {
+      storedTournamentId,
+      storedBoardNumber,
+      storedCode,
+      storedPassword,
+      storedMatchId,
+      storedIsReady,
+    });
+
+    const restoreMatch = async (matchId: string) => {
+      try {
+        const res = await fetch(`/api/matches/${matchId}`);
+        if (res.ok) {
+          const matchData = await res.json();
+          setNextMatch({
+            matchId: matchData._id,
+            player1Id: matchData.player1._id,
+            player2Id: matchData.player2._id,
+            player1Name: matchData.player1.name,
+            player2Name: matchData.player2.name,
+            scribeName: matchData.scorer?.name || "Nincs",
+            stats: matchData.stats || {
+              player1: { average: 0, dartsThrown: 0, legsWon: 0 },
+              player2: { average: 0, dartsThrown: 0, legsWon: 0 },
+            },
+          });
+          setIsReady(storedIsReady);
+        } else {
+          localStorage.removeItem("matchId");
+          localStorage.setItem("isReady", "false");
+          if (storedBoardNumber) {
+            await checkOngoingMatch(storedBoardNumber);
+          }
+        }
+      } catch (error) {
+        console.error("Error restoring match:", error);
+        localStorage.removeItem("matchId");
+        localStorage.setItem("isReady", "false");
+        if (storedBoardNumber) {
+          await checkOngoingMatch(storedBoardNumber);
+        }
+      }
+    };
 
     if (storedCode && storedPassword && !tournamentId) {
       handleValidate({ code: storedCode, password: storedPassword });
@@ -229,7 +287,11 @@ export default function BoardPage() {
 
     if (storedTournamentId && storedBoardNumber && tournamentId) {
       setSelectedBoard(storedBoardNumber);
-      handleBoardSelect({ boardNumber: storedBoardNumber });
+      if (storedMatchId && storedIsReady) {
+        restoreMatch(storedMatchId);
+      } else {
+        handleBoardSelect({ boardNumber: storedBoardNumber });
+      }
     }
   }, [tournamentId]);
 
@@ -341,8 +403,8 @@ export default function BoardPage() {
                 player2Name: nextMatch.player2Name,
                 scribeName: nextMatch.scribeName,
                 stats: nextMatch.stats || {
-                  player1: { average: 0, checkoutRate: 0, dartsThrown: 0, legsWon: 0 },
-                  player2: { average: 0, checkoutRate: 0, dartsThrown: 0, legsWon: 0 },
+                  player1: { average: 0, dartsThrown: 0, legsWon: 0 },
+                  player2: { average: 0, dartsThrown: 0, legsWon: 0 },
                 },
               }}
               boardId={boardId!}

@@ -1,8 +1,15 @@
+'use client';
+
 import { useState, useEffect } from "react";
 import { toast } from "react-hot-toast";
 import { checkoutTable } from "@/lib/checkouts";
-import { Leg, Player } from "@/types/matchSchema"; // Import centralized types
+import { Leg } from "@/types/matchSchema";
 import mongoose from "mongoose";
+import PlayerCard from "./playerCard";
+import MatchSetup from "./matchSetup";
+import CheckoutPrompt from "./checkoutPrompt";
+import FinishConfirmation from "./finishConfirmation";
+import ScoreInput from "./scoreInput";
 
 interface DartsCounterProps {
   match: {
@@ -13,16 +20,8 @@ interface DartsCounterProps {
     player2Name: string;
     scribeName: string;
     stats: {
-      player1: {
-        average: number;
-        dartsThrown: number;
-        legsWon: number;
-      };
-      player2: {
-        average: number;
-        dartsThrown: number;
-        legsWon: number;
-      };
+      player1: { average: number; dartsThrown: number; legsWon: number };
+      player2: { average: number; dartsThrown: number; legsWon: number };
     };
   };
   boardId: string;
@@ -39,18 +38,38 @@ interface DartsCounterProps {
 interface Throw {
   score: number;
   isDouble?: boolean;
-  darts?: number; // Track darts for 180s and checkouts
+  darts?: number;
 }
 
 interface PlayerState {
   score: number;
-  dartsThrown: number;
+  totalDartsThrown: number;
+  currentLegDartsThrown: number;
+  totalPointsThrown: number;
   throws: Throw[];
   checkoutAttempts: number;
   successfulCheckouts: number;
   legsWon: number;
-  oneEighties: number[]; // Track 180 throws
-  highestCheckout: { player1: number; player2: number } | null; // Adjusted to match Leg.highestCheckout
+  oneEighties: number[];
+  highestCheckout: number;
+}
+
+interface ThrowHistoryEntry {
+  player: "player1" | "player2";
+  score: number;
+  darts: number;
+  isDouble: boolean;
+  wasOneEighty: boolean;
+  previousState: {
+    score: number;
+    currentLegDartsThrown: number;
+    totalDartsThrown: number;
+    totalPointsThrown: number;
+    oneEighties: number[];
+    checkoutAttempts: number;
+    successfulCheckouts: number;
+    highestCheckout: number;
+  };
 }
 
 export default function DartsCounter({
@@ -61,25 +80,30 @@ export default function DartsCounter({
 }: DartsCounterProps) {
   const [matchType, setMatchType] = useState<"bo3" | "bo5" | "bo7">("bo3");
   const [startingPlayer, setStartingPlayer] = useState<"player1" | "player2">("player1");
+  const [legStartingPlayer, setLegStartingPlayer] = useState<"player1" | "player2">("player1");
   const [player1State, setPlayer1State] = useState<PlayerState>({
     score: 501,
-    dartsThrown: 0,
+    totalDartsThrown: match.stats.player1.dartsThrown || 0,
+    currentLegDartsThrown: 0,
+    totalPointsThrown: 0,
     throws: [],
     checkoutAttempts: 0,
     successfulCheckouts: 0,
     legsWon: match.stats.player1.legsWon || 0,
     oneEighties: [],
-    highestCheckout: null,
+    highestCheckout: 0,
   });
   const [player2State, setPlayer2State] = useState<PlayerState>({
     score: 501,
-    dartsThrown: 0,
+    totalDartsThrown: match.stats.player2.dartsThrown || 0,
+    currentLegDartsThrown: 0,
+    totalPointsThrown: 0,
     throws: [],
     checkoutAttempts: 0,
     successfulCheckouts: 0,
     legsWon: match.stats.player2.legsWon || 0,
     oneEighties: [],
-    highestCheckout: null,
+    highestCheckout: 0,
   });
   const [currentPlayer, setCurrentPlayer] = useState<"player1" | "player2">(startingPlayer);
   const [inputScore, setInputScore] = useState("");
@@ -91,17 +115,34 @@ export default function DartsCounter({
   const [checkoutDartsInput, setCheckoutDartsInput] = useState("");
   const [doubleAttemptsInput, setDoubleAttemptsInput] = useState("");
   const [showSetup, setShowSetup] = useState(true);
-  const [editingField, setEditingField] = useState<"checkoutDarts" | "doubleAttempts" | null>(null);
   const [showFinishConfirmation, setShowFinishConfirmation] = useState(false);
+  const [throwHistory, setThrowHistory] = useState<ThrowHistoryEntry[]>([]);
+
+  useEffect(() => {
+    setLegStartingPlayer(startingPlayer);
+    setCurrentPlayer(startingPlayer);
+  }, [startingPlayer]);
 
   useEffect(() => {
     if (legs.length > 0) {
-      const lastLegWinner = legs[legs.length - 1].winnerId;
-      setCurrentPlayer(lastLegWinner?.toString() === match.player1Id ? "player2" : "player1");
-      setPlayer1State((prev) => ({ ...prev, score: 501, throws: [] }));
-      setPlayer2State((prev) => ({ ...prev, score: 501, throws: [] }));
+      setPlayer1State((prev) => ({
+        ...prev,
+        score: 501,
+        currentLegDartsThrown: 0,
+        throws: [],
+        highestCheckout: 0,
+      }));
+      setPlayer2State((prev) => ({
+        ...prev,
+        score: 501,
+        currentLegDartsThrown: 0,
+        throws: [],
+        highestCheckout: 0,
+      }));
+      setInputScore("");
+      setThrowHistory([]);
     }
-  }, [legs, match.player1Id, match.player2Id]);
+  }, [legs]);
 
   const handleThrow = async () => {
     const score = parseInt(inputScore);
@@ -112,63 +153,90 @@ export default function DartsCounter({
 
     const currentState = currentPlayer === "player1" ? player1State : player2State;
     const setCurrentState = currentPlayer === "player1" ? setPlayer1State : setPlayer2State;
-    const opponentState = currentPlayer === "player1" ? player2State : player1State;
 
     let newScore = currentState.score - score;
     let newThrows = [...currentState.throws, { score, isDouble: isDoubleAttempt && doubleHit, darts: 3 }];
     let checkoutAttempts = currentState.checkoutAttempts;
     let successfulCheckouts = currentState.successfulCheckouts;
     let oneEighties = [...currentState.oneEighties];
-    let highestCheckout = currentState.highestCheckout || { player1: 0, player2: 0 };
+    let highestCheckout = currentState.highestCheckout;
+    const newTotalPointsThrown = currentState.totalPointsThrown + score;
 
     if (score === 180) {
-      oneEighties.push(currentState.dartsThrown + 1); // Record dart number of 180
+      oneEighties.push(currentState.totalDartsThrown + 1);
     }
 
     const requiresDouble = newScore > 0 && newScore <= 170 && checkoutTable[newScore];
-    const canDoubleFinish = newScore <= 50 || (newScore <= 170 && checkoutTable[newScore] && checkoutTable[newScore].includes("D"));
+    const canDoubleFinish =
+      newScore <= 50 || (newScore <= 170 && checkoutTable[newScore] && checkoutTable[newScore].includes("D"));
     if (requiresDouble && canDoubleFinish && isDoubleAttempt) {
       checkoutAttempts++;
       if (doubleHit && newScore === 0) {
         successfulCheckouts++;
-        highestCheckout = {
-          player1: currentPlayer === "player1" ? score : highestCheckout.player1,
-          player2: currentPlayer === "player2" ? score : highestCheckout.player2,
-        };
+        highestCheckout = Math.max(highestCheckout, score);
       }
     }
+
+    const throwEntry: ThrowHistoryEntry = {
+      player: currentPlayer,
+      score,
+      darts: 3,
+      isDouble: isDoubleAttempt && doubleHit,
+      wasOneEighty: score === 180,
+      previousState: {
+        score: currentState.score,
+        currentLegDartsThrown: currentState.currentLegDartsThrown,
+        totalDartsThrown: currentState.totalDartsThrown,
+        totalPointsThrown: currentState.totalPointsThrown,
+        oneEighties: [...currentState.oneEighties],
+        checkoutAttempts,
+        successfulCheckouts,
+        highestCheckout,
+      },
+    };
 
     if (newScore < 0 || (newScore === 0 && requiresDouble && !(isDoubleAttempt && doubleHit))) {
       toast.error("Bust! Túl sok pont vagy dupla szükséges.");
       newThrows.pop();
       setCurrentPlayer(currentPlayer === "player1" ? "player2" : "player1");
     } else {
-      currentState.dartsThrown += 3;
+      const newDartsThrown = currentState.currentLegDartsThrown + 3;
+      const newTotalDartsThrown = currentState.totalDartsThrown + 3;
       if (newScore === 0 && (!requiresDouble || (isDoubleAttempt && doubleHit))) {
         const newLegsWon = currentState.legsWon + 1;
         setCurrentState((prev) => ({
           ...prev,
           score: newScore,
+          currentLegDartsThrown: newDartsThrown,
+          totalDartsThrown: newTotalDartsThrown,
+          totalPointsThrown: newTotalPointsThrown,
           throws: newThrows,
-          dartsThrown: prev.dartsThrown,
           checkoutAttempts,
           successfulCheckouts,
           legsWon: newLegsWon,
           oneEighties,
           highestCheckout,
         }));
+        setThrowHistory((prev) => [...prev, throwEntry]);
 
         const newLeg: Leg = {
-            player1Throws: player1State.throws.map(throwItem => ({ score: throwItem.score, darts: throwItem.darts || 0 })),
-            player2Throws: player2State.throws.map(throwItem => ({ score: throwItem.score, darts: throwItem.darts || 0 })),
-            winnerId: new mongoose.Types.ObjectId(currentPlayer === "player1" ? match.player1Id : match.player2Id),
-            highestCheckout: {
-              player1: player1State.highestCheckout?.player1 || 0,
-              player2: player2State.highestCheckout?.player2 || 0,
-            },
-            oneEighties: { player1: player1State.oneEighties, player2: player2State.oneEighties },
-            createdAt: new Date(),
-          };
+          player1Throws: player1State.throws.map((throwItem) => ({
+            score: throwItem.score,
+            darts: throwItem.darts || 0,
+          })),
+          player2Throws: player2State.throws.map((throwItem) => ({
+            score: throwItem.score,
+            darts: throwItem.darts || 0,
+          })),
+          winnerId: new mongoose.Types.ObjectId(currentPlayer === "player1" ? match.player1Id : match.player2Id),
+          highestCheckout: highestCheckout > 0 ? {
+            score: highestCheckout,
+            darts: 3,
+            playerId: new mongoose.Types.ObjectId(currentPlayer === "player1" ? match.player1Id : match.player2Id),
+          } : undefined,
+          oneEighties: { player1: player1State.oneEighties, player2: player2State.oneEighties },
+          createdAt: new Date(),
+        };
         setLegs((prev) => [...prev, newLeg]);
         setShowCheckoutPrompt(true);
         return;
@@ -176,13 +244,16 @@ export default function DartsCounter({
         setCurrentState((prev) => ({
           ...prev,
           score: newScore,
+          currentLegDartsThrown: newDartsThrown,
+          totalDartsThrown: newTotalDartsThrown,
+          totalPointsThrown: newTotalPointsThrown,
           throws: newThrows,
-          dartsThrown: prev.dartsThrown,
           checkoutAttempts,
           successfulCheckouts,
           oneEighties,
           highestCheckout,
         }));
+        setThrowHistory((prev) => [...prev, throwEntry]);
         setCurrentPlayer(currentPlayer === "player1" ? "player2" : "player1");
       }
     }
@@ -190,6 +261,58 @@ export default function DartsCounter({
     setInputScore("");
     setIsDoubleAttempt(false);
     setDoubleHit(false);
+  };
+
+  const handleRevertThrow = async () => {
+    if (throwHistory.length === 0) {
+      toast.error("Nincs visszavonható dobás");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const lastThrow = throwHistory[throwHistory.length - 1];
+      const setState = lastThrow.player === "player1" ? setPlayer1State : setPlayer2State;
+
+      setState((prev) => ({
+        ...prev,
+        score: lastThrow.previousState.score,
+        currentLegDartsThrown: lastThrow.previousState.currentLegDartsThrown,
+        totalDartsThrown: lastThrow.previousState.totalDartsThrown,
+        totalPointsThrown: lastThrow.previousState.totalPointsThrown,
+        throws: prev.throws.slice(0, -1),
+        checkoutAttempts: lastThrow.previousState.checkoutAttempts,
+        successfulCheckouts: lastThrow.previousState.successfulCheckouts,
+        oneEighties: [...lastThrow.previousState.oneEighties],
+        highestCheckout: lastThrow.previousState.highestCheckout,
+      }));
+
+      setThrowHistory((prev) => prev.slice(0, -1));
+      setCurrentPlayer(lastThrow.player);
+
+      const updatedPlayer1Stats = {
+        dartsThrown: player1State.totalDartsThrown,
+        average: calculateAverage(player1State.totalPointsThrown, player1State.totalDartsThrown),
+        legsWon: player1State.legsWon,
+      };
+      const updatedPlayer2Stats = {
+        dartsThrown: player2State.totalDartsThrown,
+        average: calculateAverage(player2State.totalPointsThrown, player2State.totalDartsThrown),
+        legsWon: player2State.legsWon,
+      };
+
+      await updateMatchStats({
+        player1: updatedPlayer1Stats,
+        player2: updatedPlayer2Stats,
+        legs,
+      });
+
+      toast.success("Utolsó dobás visszavonva");
+    } catch (error: any) {
+      toast.error(error.message || "Nem sikerült a dobás visszavonása");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleCheckoutSubmit = async () => {
@@ -200,8 +323,8 @@ export default function DartsCounter({
       toast.error("A kiszálló nyilak száma 1 és 3 között legyen");
       return;
     }
-    if (isNaN(doubleAttempts) || doubleAttempts < 0 || doubleAttempts > 2) {
-      toast.error("A dupla próbálkozások száma 0 és 2 között legyen");
+    if (isNaN(doubleAttempts) || doubleAttempts < 1 || doubleAttempts > 3) {
+      toast.error("A dupla nyilak száma 1 és 3 között legyen");
       return;
     }
 
@@ -215,19 +338,19 @@ export default function DartsCounter({
     const setCurrentState = currentPlayer === "player1" ? setPlayer1State : setPlayer2State;
     const updatedState = {
       ...currentState,
-      checkoutAttempts: currentState.checkoutAttempts + (doubleAttempts > 0 ? 1 : 0),
-      successfulCheckouts: currentState.successfulCheckouts + (doubleAttempts > 0 ? 1 : 0),
+      checkoutAttempts: currentState.checkoutAttempts + 1,
+      successfulCheckouts: currentState.successfulCheckouts + 1,
     };
     setCurrentState(updatedState);
 
     const updatedPlayer1Stats = {
-      dartsThrown: player1State.dartsThrown,
-      average: calculateAverage(player1State.score, player1State.dartsThrown),
+      dartsThrown: player1State.totalDartsThrown,
+      average: calculateAverage(player1State.totalPointsThrown, player1State.totalDartsThrown),
       legsWon: player1State.legsWon,
     };
     const updatedPlayer2Stats = {
-      dartsThrown: player2State.dartsThrown,
-      average: calculateAverage(player2State.score, player2State.dartsThrown),
+      dartsThrown: player2State.totalDartsThrown,
+      average: calculateAverage(player2State.totalPointsThrown, player2State.totalDartsThrown),
       legsWon: player2State.legsWon,
     };
 
@@ -241,57 +364,77 @@ export default function DartsCounter({
     if (currentState.legsWon >= targetLegs) {
       setShowFinishConfirmation(true);
     } else {
-      setPlayer1State((prev) => ({ ...prev, score: 501, throws: [] }));
-      setPlayer2State((prev) => ({ ...prev, score: 501, throws: [] }));
-      setCurrentPlayer(currentPlayer === match.player1Id ? "player2" : "player1");
+      const nextStartingPlayer = legStartingPlayer === "player1" ? "player2" : "player1";
+      setLegStartingPlayer(nextStartingPlayer);
+      setCurrentPlayer(nextStartingPlayer);
+      setInputScore("");
       toast.success(`${currentPlayer === "player1" ? match.player1Name : match.player2Name} nyerte a leget!`);
     }
 
     setShowCheckoutPrompt(false);
     setCheckoutDartsInput("");
     setDoubleAttemptsInput("");
-    setEditingField(null);
   };
 
   const handleFinishConfirmation = async (confirm: boolean) => {
     if (confirm) {
       const currentState = currentPlayer === "player1" ? player1State : player2State;
       const winnerId = currentPlayer === "player1" ? match.player1Id : match.player2Id;
-      // Adjust highestCheckout to match the expected type { player1: number; player2: number }
-      const highestCheckout = legs.reduce((max, leg) => {
-        const player1Max = leg.highestCheckout?.player1 || 0;
-        const player2Max = leg.highestCheckout?.player2 || 0;
-        const maxPlayer1 = max.player1 || 0;
-        const maxPlayer2 = max.player2 || 0;
-        return {
-          player1: Math.max(player1Max, maxPlayer1),
-          player2: Math.max(player2Max, maxPlayer2),
-        };
-      }, { player1: 0, player2: 0 });
-
+      const highestCheckout = legs.reduce(
+        (max, leg) => ({
+          player1: leg.highestCheckout?.playerId.toString() === match.player1Id
+            ? Math.max(leg.highestCheckout?.score || 0, max.player1)
+            : max.player1,
+          player2: leg.highestCheckout?.playerId.toString() === match.player2Id
+            ? Math.max(leg.highestCheckout?.score || 0, max.player2)
+            : max.player2,
+        }),
+        { player1: 0, player2: 0 }
+      );
       const oneEighties = {
         player1: { count: player1State.oneEighties.length, darts: player1State.oneEighties },
         player2: { count: player2State.oneEighties.length, darts: player2State.oneEighties },
       };
       await handleFinishMatch({
         winnerId,
-        player1Stats: { legsWon: player1State.legsWon, dartsThrown: player1State.dartsThrown, average: calculateAverage(player1State.score, player1State.dartsThrown) },
-        player2Stats: { legsWon: player2State.legsWon, dartsThrown: player2State.dartsThrown, average: calculateAverage(player2State.score, player2State.dartsThrown) },
-        highestCheckout, // Now matches { player1: number; player2: number }
+        player1Stats: {
+          legsWon: player1State.legsWon,
+          dartsThrown: player1State.totalDartsThrown,
+          average: calculateAverage(player1State.totalPointsThrown, player1State.totalDartsThrown),
+        },
+        player2Stats: {
+          legsWon: player2State.legsWon,
+          dartsThrown: player2State.totalDartsThrown,
+          average: calculateAverage(player2State.totalPointsThrown, player2State.totalDartsThrown),
+        },
+        highestCheckout,
         oneEighties,
       });
     }
     setShowFinishConfirmation(false);
     if (!confirm) {
-      setPlayer1State((prev) => ({ ...prev, score: 501, throws: [] }));
-      setPlayer2State((prev) => ({ ...prev, score: 501, throws: [] }));
-      setCurrentPlayer(currentPlayer === match.player1Id ? "player2" : "player1");
+      setPlayer1State((prev) => ({
+        ...prev,
+        score: 501,
+        currentLegDartsThrown: 0,
+        throws: [],
+        highestCheckout: 0,
+      }));
+      setPlayer2State((prev) => ({
+        ...prev,
+        score: 501,
+        currentLegDartsThrown: 0,
+        throws: [],
+        highestCheckout: 0,
+      }));
+      setCurrentPlayer(legStartingPlayer === "player1" ? "player2" : "player1");
+      setInputScore("");
+      setThrowHistory([]);
     }
   };
 
-  const calculateAverage = (score: number, dartsThrown: number) => {
+  const calculateAverage = (pointsThrown: number, dartsThrown: number) => {
     if (dartsThrown === 0) return 0;
-    const pointsThrown = 501 - score;
     return (pointsThrown / dartsThrown) * 3;
   };
 
@@ -325,244 +468,234 @@ export default function DartsCounter({
     return null;
   };
 
-  const handleNumpadInput = (value: string) => {
-    if (editingField === "checkoutDarts") {
-      const newValue = checkoutDartsInput + value;
-      if (parseInt(newValue) <= 3) setCheckoutDartsInput(newValue);
-      else toast.error("A kiszálló nyilak száma 1 és 3 között legyen");
-    } else if (editingField === "doubleAttempts") {
-      const newValue = doubleAttemptsInput + value;
-      if (parseInt(newValue) <= 2) setDoubleAttemptsInput(newValue);
-      else toast.error("A dupla próbálkozások száma 0 és 2 között legyen");
+  const simulateBO3Match = async () => {
+    setLoading(true);
+    try {
+      setPlayer1State({
+        score: 501,
+        totalDartsThrown: 0,
+        currentLegDartsThrown: 0,
+        totalPointsThrown: 0,
+        throws: [],
+        checkoutAttempts: 0,
+        successfulCheckouts: 0,
+        legsWon: 0,
+        oneEighties: [],
+        highestCheckout: 0,
+      });
+      setPlayer2State({
+        score: 501,
+        totalDartsThrown: 0,
+        currentLegDartsThrown: 0,
+        totalPointsThrown: 0,
+        throws: [],
+        checkoutAttempts: 0,
+        successfulCheckouts: 0,
+        legsWon: 0,
+        oneEighties: [],
+        highestCheckout: 0,
+      });
+      setLegs([]);
+      setThrowHistory([]);
+      setCurrentPlayer("player1");
+      setLegStartingPlayer("player1");
+      setShowSetup(false);
+
+      const simulatedLegs: Leg[] = [];
+
+      // Leg 1: Player 1 wins with a 100 checkout
+      const leg1: Leg = {
+        player1Throws: [
+          { score: 100, darts: 3 },
+          { score: 100, darts: 3 },
+          { score: 100, darts: 3 },
+          { score: 100, darts: 3 },
+          { score: 100, darts: 3 },
+          { score: 1, darts: 3 },
+        ],
+        player2Throws: [
+          { score: 100, darts: 3 },
+          { score: 100, darts: 3 },
+          { score: 100, darts: 3 },
+          { score: 100, darts: 3 },
+          { score: 100, darts: 3 },
+        ],
+        winnerId: new mongoose.Types.ObjectId(match.player1Id),
+        checkoutDarts: 2,
+        doubleAttempts: 1,
+        highestCheckout: {
+          score: 100,
+          darts: 2,
+          playerId: new mongoose.Types.ObjectId(match.player1Id),
+        },
+        oneEighties: { player1: [], player2: [] },
+        createdAt: new Date(),
+      };
+      simulatedLegs.push(leg1);
+
+      // Leg 2: Player 1 wins with a 170 checkout
+      const leg2: Leg = {
+        player1Throws: [
+          { score: 180, darts: 3 },
+          { score: 100, darts: 3 },
+          { score: 51, darts: 3 },
+          { score: 170, darts: 3 },
+        ],
+        player2Throws: [
+          { score: 100, darts: 3 },
+          { score: 100, darts: 3 },
+          { score: 100, darts: 3 },
+          { score: 100, darts: 3 },
+        ],
+        winnerId: new mongoose.Types.ObjectId(match.player1Id),
+        checkoutDarts: 3,
+        doubleAttempts: 1,
+        highestCheckout: {
+          score: 170,
+          darts: 3,
+          playerId: new mongoose.Types.ObjectId(match.player1Id),
+        },
+        oneEighties: { player1: [1], player2: [] },
+        createdAt: new Date(),
+      };
+      simulatedLegs.push(leg2);
+
+      setLegs(simulatedLegs);
+
+      setPlayer1State({
+        score: 0,
+        totalDartsThrown: 27,
+        currentLegDartsThrown: 12,
+        totalPointsThrown: 901,
+        throws: leg2.player1Throws,
+        checkoutAttempts: 2,
+        successfulCheckouts: 2,
+        legsWon: 2,
+        oneEighties: [1],
+        highestCheckout: 170,
+      });
+      setPlayer2State({
+        score: 101,
+        totalDartsThrown: 24,
+        currentLegDartsThrown: 12,
+        totalPointsThrown: 800,
+        throws: leg2.player2Throws,
+        checkoutAttempts: 0,
+        successfulCheckouts: 0,
+        legsWon: 0,
+        oneEighties: [],
+        highestCheckout: 0,
+      });
+
+      await updateMatchStats({
+        player1: {
+          dartsThrown: 27,
+          average: calculateAverage(901, 27),
+          legsWon: 2,
+        },
+        player2: {
+          dartsThrown: 24,
+          average: calculateAverage(800, 24),
+          legsWon: 0,
+        },
+        legs: simulatedLegs,
+      });
+
+      setShowFinishConfirmation(true);
+      toast.success("BO3 mérkőzés szimulálva: Player 1 nyert 2-0, 170-es kiszállóval!");
+    } catch (error: any) {
+      toast.error(error.message || "Nem sikerült a szimuláció");
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleNumpadDelete = () => {
-    if (editingField === "checkoutDarts") setCheckoutDartsInput(checkoutDartsInput.slice(0, -1));
-    else if (editingField === "doubleAttempts") setDoubleAttemptsInput(doubleAttemptsInput.slice(0, -1));
-  };
-
-  if (showSetup) {
-    return (
-      <div className="w-screen h-screen bg-base-200 flex items-center justify-center p-6">
-        <div className="bg-base-100 rounded-lg shadow-lg p-8 w-full max-w-md">
-          <h2 className="text-5xl font-bold text-gray-800 mb-8 text-center">Mérkőzés Beállítása</h2>
-          <div className="space-y-6">
-            <div>
-              <label className="block text-2xl font-medium text-gray-700 mb-4">Mérkőzés típusa:</label>
-              <div className="grid grid-cols-3 gap-4">
-                {["bo3", "bo5", "bo7"].map((type) => (
-                  <button
-                    key={type}
-                    className={`btn btn-lg h-16 text-xl ${matchType === type ? "bg-primary text-white" : "bg-gray-100 text-gray-800 hover:bg-gray-200"} transition-colors duration-200`}
-                    onClick={() => setMatchType(type as any)}
-                  >
-                    {type.toUpperCase()}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div>
-              <label className="block text-2xl font-medium text-gray-700 mb-4">Ki kezd?</label>
-              <div className="flex gap-4">
-                <button
-                  className={`btn btn-lg h-16 flex-1 text-xl ${startingPlayer === "player1" ? "bg-primary text-white" : "bg-gray-100 text-gray-800 hover:bg-gray-200"} transition-colors duration-200`}
-                  onClick={() => setStartingPlayer("player1")}
-                >
-                  {match.player1Name}
-                </button>
-                <button
-                  className={`btn btn-lg h-16 flex-1 text-xl ${startingPlayer === "player2" ? "bg-primary text-white" : "bg-gray-100 text-gray-800 hover:bg-gray-200"} transition-colors duration-200`}
-                  onClick={() => setStartingPlayer("player2")}
-                >
-                  {match.player2Name}
-                </button>
-              </div>
-            </div>
-            <button
-              className="btn btn-success h-14 w-full text-xl font-semibold bg-green-600 text-white hover:bg-green-700 transition-colors duration-200"
-              onClick={() => setShowSetup(false)}
-            >
-              Kezdés
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-  
   return (
-    <div className="w-screen h-screen bg-base-200 flex flex-col items-center justify-center p-6">
-      <h2 className="text-5xl font-bold text-gray-800 mb-8 text-center">Tábla {selectedBoard} - Darts Counter</h2>
-      <div className="flex flex-col md:flex-row gap-6 w-full max-w-6xl">
-        <div className={`flex-1 p-6 rounded-lg shadow-lg ${currentPlayer === "player1" ? "bg-primary/10 border-4 border-primary" : "bg-base-100"}`}>
-          <h3 className="text-4xl font-bold text-gray-800 mb-4">{match.player1Name}</h3>
-          <div className="text-6xl font-bold text-gray-900 mb-4">{player1State.score}</div>
-          <div className="text-xl text-gray-600 mb-2">Legek: {player1State.legsWon}</div>
-          <div className="text-xl text-gray-600 mb-2">Dobások: {player1State.dartsThrown}</div>
-          <div className="text-xl text-gray-600 mb-4">Átlag: {calculateAverage(player1State.score, player1State.dartsThrown).toFixed(2)}</div>
-          {getCheckoutSuggestion(player1State.score) && (
-            <div className="bg-green-100 p-4 rounded-md mb-4">
-              <p className="text-lg font-medium text-green-800">Checkout: {getCheckoutSuggestion(player1State.score)}</p>
-            </div>
-          )}
-          {player1State.score - (parseInt(inputScore) || 0) <= 170 && player1State.score - (parseInt(inputScore) || 0) > 0 && (player1State.score - (parseInt(inputScore) || 0) <= 50 || checkoutTable[player1State.score - (parseInt(inputScore) || 0)]?.includes("D")) && (
-            <div className="space-y-2">
-              <label className="flex items-center gap-3">
-                <input
-                  type="checkbox"
-                  checked={isDoubleAttempt && currentPlayer === "player1"}
-                  onChange={(e) => setIsDoubleAttempt(e.target.checked)}
-                  disabled={currentPlayer !== "player1"}
-                  className="checkbox checkbox-primary h-6 w-6"
-                />
-                <span className="text-lg text-gray-700">Dupla</span>
-              </label>
-              {isDoubleAttempt && currentPlayer === "player1" && (
-                <label className="flex items-center gap-3">
-                  <input
-                    type="checkbox"
-                    checked={doubleHit}
-                    onChange={(e) => setDoubleHit(e.target.checked)}
-                    className="checkbox checkbox-success h-6 w-6"
-                  />
-                  <span className="text-lg text-gray-700">Talált</span>
-                </label>
-              )}
-            </div>
-          )}
-        </div>
-        <div className={`flex-1 p-6 rounded-lg shadow-lg ${currentPlayer === "player2" ? "bg-primary/10 border-4 border-primary" : "bg-base-100"}`}>
-          <h3 className="text-4xl font-bold text-gray-800 mb-4">{match.player2Name}</h3>
-          <div className="text-6xl font-bold text-gray-900 mb-4">{player2State.score}</div>
-          <div className="text-xl text-gray-600 mb-2">Legek: {player2State.legsWon}</div>
-          <div className="text-xl text-gray-600 mb-2">Dobások: {player2State.dartsThrown}</div>
-          <div className="text-xl text-gray-600 mb-4">Átlag: {calculateAverage(player2State.score, player2State.dartsThrown).toFixed(2)}</div>
-          {getCheckoutSuggestion(player2State.score) && (
-            <div className="bg-green-100 p-4 rounded-md mb-4">
-              <p className="text-lg font-medium text-green-800">Checkout: {getCheckoutSuggestion(player2State.score)}</p>
-            </div>
-          )}
-          {player2State.score - (parseInt(inputScore) || 0) <= 170 && player2State.score - (parseInt(inputScore) || 0) > 0 && (player2State.score - (parseInt(inputScore) || 0) <= 50 || checkoutTable[player2State.score - (parseInt(inputScore) || 0)]?.includes("D")) && (
-            <div className="space-y-2">
-              <label className="flex items-center gap-3">
-                <input
-                  type="checkbox"
-                  checked={isDoubleAttempt && currentPlayer === "player2"}
-                  onChange={(e) => setIsDoubleAttempt(e.target.checked)}
-                  disabled={currentPlayer !== "player2"}
-                  className="checkbox checkbox-primary h-6 w-6"
-                />
-                <span className="text-lg text-gray-700">Dupla</span>
-              </label>
-              {isDoubleAttempt && currentPlayer === "player2" && (
-                <label className="flex items-center gap-3">
-                  <input
-                    type="checkbox"
-                    checked={doubleHit}
-                    onChange={(e) => setDoubleHit(e.target.checked)}
-                    className="checkbox checkbox-success h-6 w-6"
-                  />
-                  <span className="text-lg text-gray-700">Talált</span>
-                </label>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
-      {!showCheckoutPrompt ? (
-        <div className="mt-6 w-full max-w-xl">
-          <div className="mb-6">
-            <div className="input input-bordered w-full flex items-center justify-between py-4 px-6 text-3xl bg-white border-gray-300 rounded-lg">
-              <span>{inputScore || "0"}</span>
-              <button className="btn btn-ghost text-2xl" onClick={() => setInputScore("")} disabled={loading || !inputScore}>✕</button>
-            </div>
-          </div>
-          <div className="grid grid-cols-3 gap-4 mb-6">
-            {Array.from({ length: 9 }, (_, i) => i + 1).map((num) => (
-              <button
-                key={num}
-                className="btn btn-outline h-16 text-2xl bg-white text-gray-800 hover:bg-gray-100 transition-colors duration-200"
-                onClick={() => {
-                  const newScore = inputScore + num.toString();
-                  if (parseInt(newScore) <= 180) setInputScore(newScore);
-                  else toast.error("A pontszám nem lehet nagyobb, mint 180");
-                }}
-                disabled={loading}
-              >
-                {num}
-              </button>
-            ))}
-            <button className="btn btn-warning h-16 text-2xl bg-yellow-500 text-white hover:bg-yellow-600 transition-colors duration-200" onClick={() => setInputScore(inputScore.slice(0, -1))} disabled={loading || !inputScore}>⌫</button>
-            <button
-              className="btn btn-outline h-16 text-2xl bg-white text-gray-800 hover:bg-gray-100 transition-colors duration-200"
-              onClick={() => {
-                const newScore = inputScore + "0";
-                if (parseInt(newScore) <= 180) setInputScore(newScore);
-                else toast.error("A pontszám nem lehet nagyobb, mint 180");
-              }}
-              disabled={loading || inputScore.length >= 3}
-            >
-              0
-            </button>
-            <button className="btn btn-primary h-16 text-2xl bg-primary text-white hover:bg-primary-dark transition-colors duration-200" onClick={handleThrow} disabled={loading || !inputScore}>
-              {loading ? <span className="loading loading-spinner"></span> : "Dobás"}
-            </button>
-          </div>
-          <p className="text-center text-lg text-gray-600">Eredményíró: {match.scribeName}</p>
-        </div>
-      ) : !showFinishConfirmation ? (
-        <div className="mt-6 w-full max-w-md bg-base-100 p-6 rounded-lg shadow-lg">
-          <h3 className="text-3xl font-bold text-gray-800 mb-6 text-center">Kiszálló részletek</h3>
-          <div className="space-y-6">
-            <div>
-              <label className="block text-xl font-medium text-gray-700 mb-3">Kiszálló nyilak (1-3)</label>
-              <div className="flex gap-3">
-                {[1, 2, 3].map((num) => (
-                  <button
-                    key={num}
-                    className={`btn h-12 w-12 text-xl ${checkoutDartsInput === num.toString() ? "bg-primary text-white" : "bg-gray-100 text-gray-800 hover:bg-gray-200"} transition-colors duration-200`}
-                    onClick={() => { setEditingField("checkoutDarts"); setCheckoutDartsInput(num.toString()); }}
-                    disabled={loading}
-                  >
-                    {num}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div>
-              <label className="block text-xl font-medium text-gray-700 mb-3">Dupla nyilak (0-2)</label>
-              <div className="flex gap-3">
-                {[0, 1, 2].map((num) => (
-                  <button
-                    key={num}
-                    className={`btn h-12 w-12 text-xl ${doubleAttemptsInput === num.toString() ? "bg-primary text-white" : "bg-gray-100 text-gray-800 hover:bg-gray-200"} transition-colors duration-200`}
-                    onClick={() => { setEditingField("doubleAttempts"); setDoubleAttemptsInput(num.toString()); }}
-                    disabled={loading}
-                  >
-                    {num}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <button
-              className="btn btn-success h-12 w-full text-xl font-semibold bg-green-600 text-white hover:bg-green-700 transition-colors duration-200"
-              onClick={handleCheckoutSubmit}
-              disabled={loading || !checkoutDartsInput || !doubleAttemptsInput}
-            >
-              {loading ? <span className="loading loading-spinner"></span> : "Megerősítés"}
-            </button>
-          </div>
-        </div>
+    <div className="w-screen h-[90vh] bg-base-200 flex flex-col items-center justify-center p-6">
+      {showSetup ? (
+        <>
+          <h2 className="text-5xl font-bold text-gray-800 mb-8 text-center">
+            Tábla {selectedBoard} - Darts Counter
+          </h2>
+          <MatchSetup
+            matchType={matchType}
+            startingPlayer={startingPlayer}
+            player1Name={match.player1Name}
+            player2Name={match.player2Name}
+            onMatchTypeChange={setMatchType}
+            onStartingPlayerChange={setStartingPlayer}
+            onStart={() => setShowSetup(false)}
+          />
+          <button
+            className="btn btn-primary mt-4"
+            onClick={simulateBO3Match}
+            disabled={loading}
+          >
+            {loading ? <span className="loading loading-spinner"></span> : "BO3 Mérkőzés Szimulálása"}
+          </button>
+        </>
       ) : (
-        <div className="mt-6 w-full max-w-md bg-base-100 p-6 rounded-lg shadow-lg">
-          <h3 className="text-3xl font-bold text-gray-800 mb-6 text-center">Mérkőzés befejezése</h3>
-          <p className="text-lg text-gray-600 mb-6 text-center">Biztosan befejezi? {currentPlayer === "player1" ? match.player1Name : match.player2Name} nyert. (Eredményíró: {match.scribeName})</p>
-          <div className="flex gap-4 justify-center">
-            <button className="btn btn-success h-12 w-32 text-xl font-semibold bg-green-600 text-white hover:bg-green-700 transition-colors duration-200" onClick={() => handleFinishConfirmation(true)} disabled={loading}>Igen</button>
-            <button className="btn btn-error h-12 w-32 text-xl font-semibold bg-red-600 text-white hover:bg-red-700 transition-colors duration-200" onClick={() => handleFinishConfirmation(false)} disabled={loading}>Nem</button>
+        <>
+          <div className="flex flex-col mt-26 md:flex-row gap-6 w-full max-w-6xl">
+            <PlayerCard
+              playerName={match.player1Name}
+              score={player1State.score}
+              legsWon={player1State.legsWon}
+              dartsThrown={player1State.currentLegDartsThrown}
+              average={calculateAverage(player1State.totalPointsThrown, player1State.totalDartsThrown)}
+              checkoutSuggestion={getCheckoutSuggestion(player1State.score)}
+              isCurrentPlayer={currentPlayer === "player1"}
+              inputScore={inputScore}
+              isDoubleAttempt={isDoubleAttempt && currentPlayer === "player1"}
+              doubleHit={doubleHit}
+              onDoubleAttemptChange={setIsDoubleAttempt}
+              onDoubleHitChange={setDoubleHit}
+            />
+            <PlayerCard
+              playerName={match.player2Name}
+              score={player2State.score}
+              legsWon={player2State.legsWon}
+              dartsThrown={player2State.currentLegDartsThrown}
+              average={calculateAverage(player2State.totalPointsThrown, player2State.totalDartsThrown)}
+              checkoutSuggestion={getCheckoutSuggestion(player2State.score)}
+              isCurrentPlayer={currentPlayer === "player2"}
+              inputScore={inputScore}
+              isDoubleAttempt={isDoubleAttempt && currentPlayer === "player2"}
+              doubleHit={doubleHit}
+              onDoubleAttemptChange={setIsDoubleAttempt}
+              onDoubleHitChange={setDoubleHit}
+            />
           </div>
-        </div>
+          {!showCheckoutPrompt && !showFinishConfirmation && (
+            <ScoreInput
+              inputScore={inputScore}
+              loading={loading}
+              onInputChange={setInputScore}
+              onClear={() => setInputScore("")}
+              onThrow={handleThrow}
+              onRevert={handleRevertThrow}
+              scribeName={match.scribeName}
+            />
+          )}
+          {showCheckoutPrompt && (
+            <CheckoutPrompt
+              checkoutDartsInput={checkoutDartsInput}
+              doubleAttemptsInput={doubleAttemptsInput}
+              loading={loading}
+              onCheckoutDartsChange={setCheckoutDartsInput}
+              onDoubleAttemptsChange={setDoubleAttemptsInput}
+              onSubmit={handleCheckoutSubmit}
+            />
+          )}
+          {showFinishConfirmation && (
+            <FinishConfirmation
+              winnerName={currentPlayer === "player1" ? match.player1Name : match.player2Name}
+              scribeName={match.scribeName}
+              loading={loading}
+              onConfirm={handleFinishConfirmation}
+            />
+          )}
+        </>
       )}
     </div>
   );

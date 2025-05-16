@@ -28,8 +28,9 @@ export interface Leg {
   checkoutDarts?: number;
   doubleAttempts?: number;
   highestCheckout?: {
-    player1: number
-    player2: number;
+    score: number;
+    darts: number;
+    playerId: mongoose.Types.ObjectId;
   };
   oneEighties: {
     player1: number[];
@@ -115,7 +116,6 @@ MatchSchema.pre('save', async function (this: Match, next) {
     this.updatedAt = new Date();
 
     if (this.winner) {
-      // Ensure player1 and player2 are populated if necessary
       if (!this.populated('player1') || !this.populated('player2')) {
         await this.populate('player1 player2');
       }
@@ -149,5 +149,4 @@ MatchSchema.pre('save', async function (this: Match, next) {
   }
 });
 
-// Indexes
 MatchSchema.index({ tournamentId: 1, status: 1 });

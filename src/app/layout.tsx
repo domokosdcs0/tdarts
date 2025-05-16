@@ -15,8 +15,11 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
+      <head>
+      <meta name="color-scheme" content="only light"></meta>
+      </head>
       <body
-        className='bg-base-100 text-base-content min-h-screen flex flex-col items-center justify-center p-4'
+        className='bg-base-100 text-base-content min-h-screen flex flex-col items-center gap-2 justify-center p-4'
       >
         <Toaster position="top-left"/>
          {/* Header */}
@@ -31,6 +34,7 @@ export default function RootLayout({
           <Link href="/search" className="btn btn-ghost normal-case text-md">
             játékos keresés
           </Link>
+          <input type="checkbox" value="emerald" className="toggle theme-controller" />
         </div>
       </div>
         {children}

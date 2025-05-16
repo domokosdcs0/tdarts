@@ -1,6 +1,43 @@
 @import "tailwindcss";
 @plugin "daisyui";
 
+
+@plugin "daisyui/theme" {
+  name: "neonbird";
+  default: false;
+  prefersdark: false;
+  color-scheme: "dark";
+  --color-base-100: oklch(13% 0.028 261.692);
+  --color-base-200: oklch(21% 0.034 264.665);
+  --color-base-300: oklch(27% 0.033 256.848);
+  --color-base-content: oklch(96% 0.003 264.542);
+  --color-primary: oklch(51% 0.222 16.935);
+  --color-primary-content: oklch(98% 0.003 247.858);
+  --color-secondary: oklch(82% 0.189 84.429);
+  --color-secondary-content: oklch(98% 0.031 120.757);
+  --color-accent: oklch(70% 0 0);
+  --color-accent-content: oklch(98% 0.016 73.684);
+  --color-neutral: oklch(13% 0.028 261.692);
+  --color-neutral-content: oklch(98% 0.002 247.839);
+  --color-info: oklch(74% 0.16 232.661);
+  --color-info-content: oklch(29% 0.066 243.157);
+  --color-success: oklch(64% 0.2 131.684);
+  --color-success-content: oklch(26% 0.051 172.552);
+  --color-warning: oklch(68% 0.162 75.834);
+  --color-warning-content: oklch(98% 0 0);
+  --color-error: oklch(27% 0.105 12.094);
+  --color-error-content: oklch(98% 0.003 247.858);
+  --radius-selector: 0.25rem;
+  --radius-field: 0.5rem;
+  --radius-box: 2rem;
+  --size-selector: 0.25rem;
+  --size-field: 0.25rem;
+  --border: 2px;
+  --depth: 1;
+  --noise: 1;
+}
+
+
 @plugin "daisyui/theme" {
   name: "emerald";
   default: true;

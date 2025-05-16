@@ -1,4 +1,3 @@
-// app/api/boards/[tournamentId]/[boardNumber]/current-match/route.ts
 import { connectMongo } from "@/lib/mongoose";
 import { getModels } from "@/lib/models";
 import { NextResponse } from "next/server";
@@ -12,7 +11,7 @@ export async function GET(
   try {
     await connectMongo();
     const { TournamentModel, MatchModel, PlayerModel } = getModels();
-    const { tournamentId, boardNumber } = await params;
+    const { tournamentId, boardNumber } = params;
 
     const tournament = await TournamentModel.findById(tournamentId).lean<Tournament>();
     if (!tournament) {
@@ -46,6 +45,10 @@ export async function GET(
       player1Name: match.player1.name,
       player2Name: match.player2.name,
       scribeName: match.scorer?.name || "Nincs",
+      stats: match.stats || {
+        player1: { average: 0, dartsThrown: 0, legsWon: 0 },
+        player2: { average: 0, dartsThrown: 0, legsWon: 0 },
+      },
     });
   } catch (error) {
     console.error("Hiba a folyamatban lévő mérkőzés lekérésekor:", error);

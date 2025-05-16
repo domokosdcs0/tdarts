@@ -23,6 +23,8 @@ interface Player {
   name: string;
   stats?: {
     matchesWon: number;
+    oneEightiesCount: number;
+    highestCheckout: number;
   };
 }
 
@@ -52,7 +54,7 @@ interface Match {
   stats?: {
     player1: { legsWon: number };
     player2: { legsWon: number };
-  }
+  };
 }
 
 interface Group {
@@ -80,7 +82,7 @@ interface Board {
   status: "idle" | "waiting" | "playing";
   waitingPlayers: Player[];
   nextMatch?: {
-    player1Name?: string
+    player1Name?: string;
     player2Name?: string;
     scribeName?: string;
     player1: { _id: string; name: string };
@@ -98,7 +100,6 @@ interface Board {
   };
 }
 
-
 export default function TournamentDetailsPage() {
   const { code } = useParams();
   const [tournament, setTournament] = useState<Tournament | null>(null);
@@ -109,7 +110,7 @@ export default function TournamentDetailsPage() {
   const [playerSuggestions, setPlayerSuggestions] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [matchFilter, setMatchFilter] = useState<"all" | "pending" | "ongoing" | "finished">("all");
-  const [secondsUntilRefresh, setSecondsUntilRefresh] = useState(10); // Új állapot a visszaszámláláshoz
+  const [secondsUntilRefresh, setSecondsUntilRefresh] = useState(10);
 
   const passwordForm = useForm<PasswordForm>({
     resolver: zodResolver(passwordSchema),
@@ -121,7 +122,6 @@ export default function TournamentDetailsPage() {
     defaultValues: { playerInput: "" },
   });
 
-  // Torna adatainak lekérése
   const fetchTournament = async () => {
     setLoading(true);
     try {
@@ -137,11 +137,9 @@ export default function TournamentDetailsPage() {
     }
   };
 
-  // Polling és kezdeti adatlekérés
   useEffect(() => {
     fetchTournament();
 
-    // Polling intervallum (10 másodperc)
     const pollingIntervalId = setInterval(async () => {
       try {
         const res = await fetch(`/api/tournaments/${code}`);
@@ -149,13 +147,12 @@ export default function TournamentDetailsPage() {
         const data = await res.json();
         setTournament(data.tournament);
         setBoards(data.boards);
-        setSecondsUntilRefresh(10); // Visszaállítjuk a visszaszámlálót
+        setSecondsUntilRefresh(10);
       } catch (error) {
         console.error("Hiba a táblák pollingja során:", error);
       }
     }, 10000);
 
-    // Visszaszámláló időzítő (1 másodperc)
     const countdownIntervalId = setInterval(() => {
       setSecondsUntilRefresh((prev) => (prev > 0 ? prev - 1 : 10));
     }, 1000);
@@ -166,7 +163,6 @@ export default function TournamentDetailsPage() {
     };
   }, [code]);
 
-  // Jelszó ellenőrzése
   const handlePasswordSubmit = async (data: PasswordForm) => {
     setLoading(true);
     try {
@@ -188,7 +184,6 @@ export default function TournamentDetailsPage() {
     }
   };
 
-  // Játékos keresés
   const handlePlayerSearch = async (query: string) => {
     if (query.length < 2) {
       setPlayerSuggestions([]);
@@ -203,7 +198,6 @@ export default function TournamentDetailsPage() {
     }
   };
 
-  // Játékos hozzáadása
   const addPlayer = async (name: string) => {
     setLoading(true);
     try {
@@ -226,7 +220,6 @@ export default function TournamentDetailsPage() {
     }
   };
 
-  // Játékos törlése
   const removePlayer = async (playerId: string) => {
     setLoading(true);
     try {
@@ -248,7 +241,6 @@ export default function TournamentDetailsPage() {
     }
   };
 
-  // Csoportok újragenerálása
   const regenerateGroups = async () => {
     setLoading(true);
     try {
@@ -261,7 +253,7 @@ export default function TournamentDetailsPage() {
         throw new Error(error.error || "Nem sikerült a csoportok újragenerálása");
       }
       await fetchTournament();
-      toast.success("Csoportok és mérkőzések sikeresen újragenerálva");
+      toast.success("Csoportok és mérkőzések sikeresly újragenerálva");
     } catch (error: any) {
       toast.error(error.message || "Nem sikerült a csoportok újragenerálása");
     } finally {
@@ -269,7 +261,6 @@ export default function TournamentDetailsPage() {
     }
   };
 
-  // Torna állapotának módosítása
   const updateStatus = async (status: string) => {
     setLoading(true);
     try {
@@ -291,7 +282,6 @@ export default function TournamentDetailsPage() {
     }
   };
 
-  // Kieső játékosok meghatározása
   const getEliminatedPlayers = (groupIndex: number): string[] => {
     if (!tournament || !tournament.groups || !tournament.players) return [];
     const totalPlayers = tournament.players.length;
@@ -338,7 +328,6 @@ export default function TournamentDetailsPage() {
     );
   }
 
-  // Játékosok rendezése
   const sortedPlayers = [...tournament.players].sort((a, b) => {
     if (sortBy === "name") {
       return a.name.localeCompare(b.name, "hu", { sensitivity: "base" });
@@ -349,29 +338,25 @@ export default function TournamentDetailsPage() {
   return (
     <main className="min-h-screen bg-base-200 w-full">
       <div className="container mx-auto p-4 flex flex-col md:flex-row gap-4">
-        {/* Sidebar */}
         <div className={`sidebar md:w-1/4 ${isSidebarOpen ? "sidebar-open" : "sidebar-closed"}`}>
-        {/* Mobil nézet: Toggle gomb */}
-        <div className="sidebar-content md:hidden">
-          <button
-            className="btn btn-primary"
-            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-          >
-            Sidebar {isSidebarOpen ? "bezárása" : "megnyitása"}
-          </button>
-        </div>
-        {/* Oldalsáv panel */}
-        <div className={`sidebar-panel bg-base-100 w-full p-4 h-full ${isSidebarOpen ? "block" : "hidden md:block"}`}>
-          {/* Overlay mobil nézetben */}
-          {isSidebarOpen && (
-            <div
-              className="sidebar-overlay fixed inset-0 bg-black/50 z-40 md:hidden"
-              onClick={() => setIsSidebarOpen(false)}
-            ></div>
-          )}
-          <h2 className="text-xl font-bold mb-4">Játékosok</h2>
-          <div className="flex gap-2 mb-4 items-center justify-between">
-          <button
+          <div className="sidebar-content md:hidden">
+            <button
+              className="btn btn-primary"
+              onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+            >
+              Sidebar {isSidebarOpen ? "bezárása" : "megnyitása"}
+            </button>
+          </div>
+          <div className={`sidebar-panel bg-base-100 w-full p-4 h-full ${isSidebarOpen ? "block" : "hidden md:block"}`}>
+            {isSidebarOpen && (
+              <div
+                className="sidebar-overlay fixed inset-0 bg-black/50 z-40 md:hidden"
+                onClick={() => setIsSidebarOpen(false)}
+              ></div>
+            )}
+            <h2 className="text-xl font-bold mb-4">Játékosok</h2>
+            <div className="flex gap-2 mb-4 items-center justify-between">
+              <button
                 className={`btn btn-sm btn-outline`}
                 onClick={() => setSortBy("name")}
               >
@@ -380,32 +365,43 @@ export default function TournamentDetailsPage() {
               <span className="text-sm font-medium">
                 Következő frissítés: {secondsUntilRefresh} mp
               </span>
+            </div>
+            <ul className="space-y-3">
+              {sortedPlayers.map((player, index) => (
+                <li
+                  key={player._id}
+                  className={`flex justify-between items-center py-1 px-2 rounded-md ${
+                    index % 2 === 0 ? "bg-base-200" : ""
+                  } hover:bg-primary/10 transition-colors`}
+                >
+                  <span className="text-base font-medium">
+                    {player.name}
+                    {player.stats && player.stats.oneEightiesCount > 0 && (
+                      <span className="ml-2 text-sm text-success">
+                        ({player.stats.oneEightiesCount}x180)
+                      </span>
+                    )}
+                    {player.stats && player.stats.highestCheckout > 80 && (
+                      <span className="ml-2 text-sm text-info">
+                        (HC: {player.stats.highestCheckout})
+                      </span>
+                    )}
+                  </span>
+                  {isModerator && (
+                    <button
+                      className="btn btn-error btn-sm"
+                      onClick={() => removePlayer(player._id)}
+                      disabled={loading}
+                    >
+                      Törlés
+                    </button>
+                  )}
+                </li>
+              ))}
+            </ul>
           </div>
-          <ul className="space-y-3">
-            {sortedPlayers.map((player, index) => (
-              <li
-                key={player._id}
-                className={`flex justify-between items-center py-1 px-2 rounded-md  ${
-                  index % 2 === 0 ? "bg-base-200" : ""
-                } hover:bg-primary/10 transition-colors`}
-              >
-                <span className="text-base font-medium">{player.name}</span>
-                {isModerator && (
-                  <button
-                    className="btn btn-error btn-sm"
-                    onClick={() => removePlayer(player._id)}
-                    disabled={loading}
-                  >
-                    Törlés
-                  </button>
-                )}
-              </li>
-            ))}
-          </ul>
         </div>
-      </div>
 
-        {/* Fő tartalom */}
         <div className="flex-1">
           <div className="card bg-base-100 shadow-xl">
             <div className="card-body">
@@ -431,7 +427,6 @@ export default function TournamentDetailsPage() {
                 <p>Létrehozva: {new Date(tournament.createdAt).toLocaleString("hu-HU")}</p>
               )}
 
-              {/* Moderátor hitelesítés */}
               {!isModerator && (
                 <form onSubmit={passwordForm.handleSubmit(handlePasswordSubmit)} className="mt-4">
                   <div className="form-control">
@@ -458,7 +453,6 @@ export default function TournamentDetailsPage() {
                 </form>
               )}
 
-              {/* Moderátor funkciók */}
               {isModerator && (
                 <div className="mt-4 space-y-4">
                   <form
@@ -494,9 +488,14 @@ export default function TournamentDetailsPage() {
                           </ul>
                         )}
                       </div>
-                      <button type="submit" className="btn btn-primary btn-sm" disabled={loading}>
-                        Hozzáad
-                      </button>
+                      <div className="flex flex-col items-start">
+                        <button type="submit" className="btn btn-primary btn-sm" disabled={loading}>
+                          Hozzáad
+                        </button>
+                        <button className="btn btn-outline btn-warning" onClick={()=>(setIsModerator(!isModerator))}>
+                          Kilépes moderátori módból
+                        </button>
+                      </div>
                     </div>
                     {playerForm.formState.errors.playerInput && (
                       <span className="text-error text-sm">
@@ -538,7 +537,6 @@ export default function TournamentDetailsPage() {
                 </div>
               )}
 
-              {/* Csoportok */}
               <div className="mt-6">
                 <h2 className="text-xl font-bold">Csoportok</h2>
                 {tournament.groups.length === 0 ? (
@@ -571,10 +569,10 @@ export default function TournamentDetailsPage() {
                                         return {
                                           player,
                                           standing,
-                                          rank: standing?.rank || Infinity, // Ha nincs helyezés, végtelenre állítjuk a rendezéshez
+                                          rank: standing?.rank || Infinity,
                                         };
                                       })
-                                      .sort((a, b) => a.rank - b.rank) // Rendezés helyezés szerint
+                                      .sort((a, b) => a.rank - b.rank)
                                       .map(({ player, standing }, index) => {
                                         const isEliminated = eliminatedPlayers.includes(player.playerId._id.toString());
                                         return (
@@ -680,7 +678,6 @@ export default function TournamentDetailsPage() {
                 )}
               </div>
 
-              {/* Táblák */}
               <div className="mt-6">
                 <h2 className="text-xl font-bold">Táblák</h2>
                 {boards.length === 0 ? (
@@ -755,7 +752,6 @@ export default function TournamentDetailsPage() {
                   </div>
                 )}
               </div>
-              {/* Főtábla placeholder */}
               <div className="mt-6">
                 <h2 className="text-xl font-bold">Főtábla</h2>
                 <p>Jelenleg nincs főtábla. (Kieséses szakasz a /board/[code] oldalon követhető.)</p>
