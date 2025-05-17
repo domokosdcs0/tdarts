@@ -7,6 +7,7 @@ export const TournamentSchema = new mongoose.Schema(
     description: { type: String },
     boardCount: { type: Number, required: true },
     tournamentPassword: { type: String, required: true },
+    startTime: {type: Date, required: true},
     status: {
       type: String,
       enum: ["created", "group", "knockout", "finished"],
@@ -64,6 +65,7 @@ export interface Tournament {
   boardCount: number;
   status: 'created' | 'group' | 'knockout' | 'finished';
   players: mongoose.Types.ObjectId[];
+  startTime: Date,
   groups: {
     players: {
       playerId: mongoose.Types.ObjectId;

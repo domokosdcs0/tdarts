@@ -27,6 +27,10 @@ export default function BoardPage() {
   const [nextMatch, setNextMatch] = useState<any>(null);
   const [isReady, setIsReady] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [player1Ready, setPlayer1Ready] = useState(false);
+  const [player2Ready, setPlayer2Ready] = useState(false);
+  const [secondsRemaining, setSecondsRemaining] = useState(300); // 5 minutes
+  const [timerExpired, setTimerExpired] = useState(false);
 
   const validateForm = useForm<ValidateForm>({
     resolver: zodResolver(validateSchema),
@@ -37,6 +41,97 @@ export default function BoardPage() {
     resolver: zodResolver(boardSchema),
     defaultValues: { boardNumber: "" },
   });
+
+  // Handle exit button click
+  const handleExit = () => {
+    // Clear localStorage
+    localStorage.removeItem("tournamentId");
+    localStorage.removeItem("tournamentCode");
+    localStorage.removeItem("tournamentPassword");
+    localStorage.removeItem("boardNumber");
+    localStorage.removeItem("matchId");
+    localStorage.removeItem("isReady");
+
+    // Reset states
+    setTournamentId(null);
+    setBoardCount(0);
+    setSelectedBoard(null);
+    setBoardId(null);
+    setNextMatch(null);
+    setIsReady(false);
+    setPlayer1Ready(false);
+    setPlayer2Ready(false);
+    setSecondsRemaining(300);
+    setTimerExpired(false);
+
+    // Reset forms
+    validateForm.reset();
+    boardForm.reset();
+
+    toast.success("Kilépve a tábláról");
+  };
+
+  // Start timer when a new match is loaded
+  useEffect(() => {
+    if (nextMatch && !nextMatch.noMatch && !isReady) {
+      setSecondsRemaining(300);
+      setTimerExpired(false);
+      setPlayer1Ready(false);
+      setPlayer2Ready(false);
+
+      const timer = setInterval(() => {
+        setSecondsRemaining((prev) => {
+          if (prev <= 1) {
+            clearInterval(timer);
+            setTimerExpired(true);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+
+      return () => clearInterval(timer);
+    }
+  }, [nextMatch, isReady]);
+
+  // Handle timeout logic
+  useEffect(() => {
+    if (timerExpired && !isReady && nextMatch && !nextMatch.noMatch) {
+      if (player1Ready && !player2Ready) {
+        // Player 1 wins 2-0
+        handleFinishMatch({
+          winnerId: nextMatch.player1Id,
+          player1Stats: { legsWon: 2, dartsThrown: 0, average: 0 },
+          player2Stats: { legsWon: 0, dartsThrown: 0, average: 0 },
+          highestCheckout: { player1: 0, player2: 0 },
+          oneEighties: {
+            player1: { count: 0, darts: [] },
+            player2: { count: 0, darts: [] },
+          },
+        });
+      } else if (player2Ready && !player1Ready) {
+        // Player 2 wins 2-0
+        handleFinishMatch({
+          winnerId: nextMatch.player2Id,
+          player1Stats: { legsWon: 0, dartsThrown: 0, average: 0 },
+          player2Stats: { legsWon: 2, dartsThrown: 0, average: 0 },
+          highestCheckout: { player1: 0, player2: 0 },
+          oneEighties: {
+            player1: { count: 0, darts: [] },
+            player2: { count: 0, darts: [] },
+          },
+        });
+      }
+      // If neither is ready, show single Ready button (handled in render)
+    }
+  }, [timerExpired, player1Ready, player2Ready, isReady, nextMatch]);
+
+  // Format timer display
+  const formatTimer = (seconds: number) => {
+    const minutes = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${minutes}:${secs.toString().padStart(2, "0")}`;
+  };
 
   // Torna validáció
   const handleValidate = async (data: ValidateForm) => {
@@ -296,7 +391,18 @@ export default function BoardPage() {
   }, [tournamentId]);
 
   return (
-    <main className="min-h-screen w-full bg-base-200 flex items-center justify-center">
+    <main className="min-h-screen w-full bg-base-200 flex items-center justify-center relative">
+      {/* Exit Button */}
+      {(!isReady || nextMatch?.noMatch) && (
+        <button
+          className="fixed top-4 right-4 btn btn-error btn-lg z-50"
+          onClick={handleExit}
+          disabled={loading}
+        >
+          {loading ? <span className="loading loading-spinner"></span> : "Kilépés a tábláról"}
+        </button>
+      )}
+
       {!tournamentId ? (
         <div className="card bg-base-100 shadow-xl p-6 w-full max-w-md">
           <h1 className="text-2xl font-bold mb-4">Torna validáció</h1>
@@ -376,22 +482,68 @@ export default function BoardPage() {
               <p>Ezen a táblán (Tábla {selectedBoard}) minden mérkőzés lejátszódott.</p>
             </div>
           ) : !isReady ? (
-            <div className="text-center">
-              <h2 className="text-4xl font-bold mb-4">Tábla {selectedBoard}</h2>
-              <p className="text-2xl mb-2">
+            <div className="text-center space-y-6">
+              <h2 className="text-4xl font-bold">Tábla {selectedBoard}</h2>
+              <p className="text-2xl">
                 {nextMatch?.player1Name} vs. {nextMatch?.player2Name}
               </p>
-              <p className="text-xl mb-6">Eredményíró: {nextMatch?.scribeName}</p>
-              <button
-                className="btn btn-success btn-lg"
-                onClick={() => {
-                  requestFullscreen();
-                  handleReady();
-                }}
-                disabled={loading}
-              >
-                {loading ? <span className="loading loading-spinner"></span> : "Ready"}
-              </button>
+              <p className="text-xl">Eredményíró: {nextMatch?.scribeName}</p>
+              {timerExpired && !player1Ready && !player2Ready ? (
+                <button
+                  className="btn btn-success btn-outline btn-lg"
+                  onClick={() => {
+                    requestFullscreen();
+                    handleReady();
+                  }}
+                  disabled={loading}
+                >
+                  {loading ? <span className="loading loading-spinner"></span> : "Ready"}
+                </button>
+              ) : (
+                <div className="flex gap-4 items-center">
+                  <button
+                    className="btn btn-success btn-outline btn-lg"
+                    onClick={() => {
+                      setPlayer1Ready(true);
+                      if (player2Ready) {
+                        requestFullscreen();
+                        handleReady();
+                      }
+                    }}
+                    disabled={loading || player1Ready}
+                  >
+                    {loading && !player1Ready ? (
+                      <span className="loading loading-spinner"></span>
+                    ) : player1Ready ? (
+                      `${nextMatch?.player1Name}`
+                    ) : (
+                        `${nextMatch?.player1Name}`
+                    )}
+                  </button>
+                  <div className={`text-6xl font-bold ${secondsRemaining <= 30 ? "text-error" : "text-warning"}`}>
+                    {formatTimer(secondsRemaining)}
+                  </div>
+                  <button
+                    className="btn btn-success btn-outline btn-lg"
+                    onClick={() => {
+                      setPlayer2Ready(true);
+                      if (player1Ready) {
+                        requestFullscreen();
+                        handleReady();
+                      }
+                    }}
+                    disabled={loading || player2Ready}
+                  >
+                    {loading && !player2Ready ? (
+                      <span className="loading loading-spinner"></span>
+                    ) : player2Ready ? (
+                      `${nextMatch?.player2Name}`
+                    ) : (
+                      ` ${nextMatch?.player2Name}`
+                    )}
+                  </button>
+                </div>
+              )}
             </div>
           ) : (
             <DartsCounter
