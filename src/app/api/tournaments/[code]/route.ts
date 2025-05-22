@@ -1,14 +1,17 @@
 import { connectMongo } from "@/lib/mongoose";
 import { getModels } from "@/lib/models";
 import { NextResponse } from "next/server";
-import { Tournament } from "@/types/tournamentSchema";
 import mongoose from "mongoose";
+import { Tournament } from "@/types/tournamentSchema";
 
 // Interfész a populált Match objektumhoz
 interface PopulatedMatch {
   _id: string;
   tournamentId: string;
-  groupIndex: number;
+  groupIndex?: number;
+  player1Number?: number;
+  player2Number?: number;
+  scribeNumber?: number;
   status: string;
   player1: { _id: string; name: string };
   player2: { _id: string; name: string };
@@ -37,7 +40,7 @@ interface PopulatedMatch {
   }[];
 }
 
-export async function GET(request: Request, { params }: { params: { code: string } }) {
+export async function GET(request: Request, { params }: { params: Promise<{ code: string }> }) {
   try {
     await connectMongo();
     const { TournamentModel, BoardModel, MatchModel } = getModels();
@@ -64,8 +67,16 @@ export async function GET(request: Request, { params }: { params: { code: string
         path: "groups.standings.playerId",
         select: "name",
       })
+      .populate({
+        path: "knockout.rounds.matches",
+        populate: [
+          { path: "player1", select: "name" },
+          { path: "player2", select: "name" },
+          { path: "scorer", select: "name" },
+          { path: "winner", select: "name" },
+        ],
+      })
       .lean<Tournament>();
-
     if (!tournament) {
       return NextResponse.json({ error: "Torna nem található" }, { status: 404 });
     }
@@ -84,9 +95,9 @@ export async function GET(request: Request, { params }: { params: { code: string
 
     // Initialize stats for each player
     tournament.players.forEach((player) => {
-      playerStats[player._id.toString()] = { 
-        oneEightiesCount: 0, 
-        highestCheckout: 0 
+      playerStats[player._id.toString()] = {
+        oneEightiesCount: 0,
+        highestCheckout: 0,
       };
     });
 
@@ -141,11 +152,11 @@ export async function GET(request: Request, { params }: { params: { code: string
       .lean();
 
     const boardsWithMatches = await Promise.all(
-      boards.map(async (board, index) => {
+      boards.map(async (board) => {
         if (board.status === "waiting") {
           const nextMatch = await MatchModel.findOne({
             tournamentId: tournament._id,
-            groupIndex: index,
+            boardId: board.boardId,
             status: "pending",
           })
             .populate("player1", "name")
@@ -157,16 +168,16 @@ export async function GET(request: Request, { params }: { params: { code: string
             ...board,
             nextMatch: nextMatch
               ? {
-                  player1Name: nextMatch.player1.name,
-                  player2Name: nextMatch.player2.name,
-                  scribeName: nextMatch.scorer?.name || "Nincs",
+                  player1: nextMatch.player1,
+                  player2: nextMatch.player2,
+                  scorer: nextMatch.scorer,
                 }
               : null,
           };
         } else if (board.status === "playing") {
           const currentMatch = await MatchModel.findOne({
             tournamentId: tournament._id,
-            groupIndex: index,
+            boardId: board.boardId,
             status: "ongoing",
           })
             .populate("player1", "name")
@@ -178,9 +189,9 @@ export async function GET(request: Request, { params }: { params: { code: string
             ...board,
             currentMatch: currentMatch
               ? {
-                  player1Name: currentMatch.player1.name,
-                  player2Name: currentMatch.player2.name,
-                  scribeName: currentMatch.scorer?.name || "Nincs",
+                  player1: currentMatch.player1,
+                  player2: currentMatch.player2,
+                  scorer: currentMatch.scorer,
                   stats: {
                     player1Legs: currentMatch.stats?.player1?.legsWon || 0,
                     player2Legs: currentMatch.stats?.player2?.legsWon || 0,

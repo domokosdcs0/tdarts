@@ -390,6 +390,8 @@ export default function BoardPage() {
     }
   }, [tournamentId]);
 
+  console.log(nextMatch)
+
   return (
     <main className="min-h-screen w-full bg-base-200 flex items-center justify-center relative">
       {/* Exit Button */}

@@ -11,7 +11,7 @@ export async function GET(
   try {
     await connectMongo();
     const { TournamentModel, MatchModel, PlayerModel } = getModels();
-    const { tournamentId, boardNumber } = params;
+    const { tournamentId, boardNumber } = await params;
 
     const tournament = await TournamentModel.findById(tournamentId).lean<Tournament>();
     if (!tournament) {
@@ -27,7 +27,7 @@ export async function GET(
     const match = await MatchModel.findOne({
       tournamentId,
       groupIndex,
-      status: "playing",
+      status: "ongoing",
     })
       .populate("player1", "name", PlayerModel)
       .populate("player2", "name", PlayerModel)

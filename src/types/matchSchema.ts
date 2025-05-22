@@ -81,10 +81,10 @@ export interface PopulatedMatch extends Omit<Match, 'player1' | 'player2' | 'sco
 export const MatchSchema = new mongoose.Schema({
   tournamentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Tournament', required: true },
   boardId: { type: String },
-  groupIndex: { type: Number, required: true },
-  player1Number: { type: Number, required: true },
-  player2Number: { type: Number, required: true },
-  scribeNumber: { type: Number, required: true },
+  groupIndex: { type: Number, default: 0 },
+  player1Number: { type: Number, default: 1 },
+  player2Number: { type: Number, default: 2 },
+  scribeNumber: { type: Number, default: 0 },
   player1: { type: mongoose.Schema.Types.ObjectId, ref: 'Player', required: true },
   player2: { type: mongoose.Schema.Types.ObjectId, ref: 'Player', required: true },
   scorer: { type: mongoose.Schema.Types.ObjectId, ref: 'Player' },
@@ -109,6 +109,8 @@ export const MatchSchema = new mongoose.Schema({
   winner: { type: mongoose.Schema.Types.ObjectId, ref: 'Player' },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now },
+  round: { type: Number },
+  isKnockout: { type: Boolean, default: false },
 }, { collection: 'matches' });
 
 MatchSchema.pre('save', async function (this: Match, next) {

@@ -83,7 +83,8 @@ export interface Tournament {
   }[];
   knockout: {
     rounds: {
-      matches: mongoose.Types.ObjectId[];
+      type: mongoose.Schema.Types.ObjectId,
+        ref: "Match"
     }[];
   };
   createdAt: Date;

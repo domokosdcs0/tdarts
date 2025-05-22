@@ -4,6 +4,7 @@ import { getModels } from "@/lib/models";
 import { NextResponse } from "next/server";
 import { PopulatedMatch } from "@/types/matchSchema";
 import { Tournament } from "@/types/tournamentSchema";
+import { Board } from "@/types/boardSchema";
 
 export async function GET(
   request: Request,
@@ -11,8 +12,8 @@ export async function GET(
 ) {
   try {
     await connectMongo();
-    const { TournamentModel, MatchModel, PlayerModel } = getModels();
-    const { tournamentId, boardNumber } = params;
+    const { TournamentModel, MatchModel, PlayerModel, BoardModel } = getModels();
+    const { tournamentId, boardNumber } = await params;
 
     const tournament = await TournamentModel.findById(tournamentId).lean<Tournament>();
     if (!tournament) {
@@ -23,18 +24,22 @@ export async function GET(
     if (groupIndex < 0 || groupIndex >= tournament.groups.length) {
       return NextResponse.json({ error: "Érvénytelen tábla szám" }, { status: 400 });
     }
+    
+    const boards = await BoardModel.find({}).lean<Board[]>();
+    const board = boards[groupIndex]
+
+    console.log(board)
 
     // Keresünk egy pending mérkőzést az adott csoportban
     const match = await MatchModel.findOne({
       tournamentId,
-      groupIndex,
+      boardId: board.boardId,
       status: "pending",
     })
       .populate("player1", "name", PlayerModel)
       .populate("player2", "name", PlayerModel)
       .populate("scorer", "name", PlayerModel)
       .lean() as PopulatedMatch | null;
-
     if (!match) {
       return NextResponse.json({ noMatch: true }, { status: 200 });
     }

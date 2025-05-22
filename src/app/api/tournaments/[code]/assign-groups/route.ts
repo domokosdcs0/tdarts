@@ -2,6 +2,7 @@ import { connectMongo } from "@/lib/mongoose";
 import { getModels } from "@/lib/models";
 import { NextResponse } from "next/server";
 import { v4 as uuidv4 } from "uuid";
+import { Board } from "@/types/boardSchema";
 
 function generateMatches(playerCount: number): { player1Idx: number; player2Idx: number; scorerIdx: number }[] {
   // Összes lehetséges pár generálása
@@ -150,6 +151,20 @@ export async function POST(request: Request, { params }: { params: { code: strin
       [players[i], players[j]] = [players[j], players[i]];
     }
 
+        // Töröljük és újrageneráljuk a táblákat
+        await BoardModel.deleteMany({ tournamentId: tournament._id });
+        const boards = [];
+        for (let i = 1; i <= boardCount; i++) {
+          boards.push({
+            tournamentId: tournament._id,
+            boardId: uuidv4(),
+            boardNumber: i,
+            status: "idle",
+            waitingPlayers: [],
+          });
+        }
+        await BoardModel.insertMany(boards);
+
     const groups = [];
     for (let groupIndex = 0; groupIndex < boardCount; groupIndex++) {
       const groupPlayers = players.slice(groupIndex * playersPerGroup, (groupIndex + 1) * playersPerGroup);
@@ -160,13 +175,18 @@ export async function POST(request: Request, { params }: { params: { code: strin
         number: index + 1,
       }));
 
+      const boards = await BoardModel.find({ tournamentId: tournament._id }).lean<Board[]>();
+      const boardId = boards[groupIndex].boardId;
+
+      console.log("Board ID:", boardId);
+
       const orderedMatches = generateMatches(numberedPlayers.length);
 
       const matches = [];
       for (const { player1Idx, player2Idx, scorerIdx } of orderedMatches) {
         const match = await MatchModel.create({
           tournamentId: tournament._id,
-          groupIndex,
+          boardId,
           player1Number: numberedPlayers[player1Idx].number,
           player2Number: numberedPlayers[player2Idx].number,
           scribeNumber: numberedPlayers[scorerIdx].number,
@@ -186,19 +206,7 @@ export async function POST(request: Request, { params }: { params: { code: strin
       });
     }
 
-    // Töröljük és újrageneráljuk a táblákat
-    await BoardModel.deleteMany({ tournamentId: tournament._id });
-    const boards = [];
-    for (let i = 1; i <= boardCount; i++) {
-      boards.push({
-        tournamentId: tournament._id,
-        boardId: uuidv4(),
-        boardNumber: i,
-        status: "idle",
-        waitingPlayers: [],
-      });
-    }
-    await BoardModel.insertMany(boards);
+
 
     tournament.groups = groups;
     tournament.status = "group";

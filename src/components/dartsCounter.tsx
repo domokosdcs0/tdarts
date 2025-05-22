@@ -5,11 +5,12 @@ import { toast } from "react-hot-toast";
 import { checkoutTable } from "@/lib/checkouts";
 import { Leg } from "@/types/matchSchema";
 import mongoose from "mongoose";
-import PlayerCard from "./playerCard";
-import MatchSetup from "./matchSetup";
 import CheckoutPrompt from "./checkoutPrompt";
 import FinishConfirmation from "./finishConfirmation";
+import MatchSetup from "./matchSetup";
+import PlayerCard from "./playerCard";
 import ScoreInput from "./scoreInput";
+
 
 interface DartsCounterProps {
   match: {
@@ -117,14 +118,54 @@ export default function DartsCounter({
   const [showSetup, setShowSetup] = useState(true);
   const [showFinishConfirmation, setShowFinishConfirmation] = useState(false);
   const [throwHistory, setThrowHistory] = useState<ThrowHistoryEntry[]>([]);
+  const [matchFinished, setMatchFinished] = useState(false);
 
+  // Reset states when match prop changes
   useEffect(() => {
-    setLegStartingPlayer(startingPlayer);
-    setCurrentPlayer(startingPlayer);
-  }, [startingPlayer]);
+    setPlayer1State({
+      score: 501,
+      totalDartsThrown: match.stats.player1.dartsThrown || 0,
+      currentLegDartsThrown: 0,
+      totalPointsThrown: 0,
+      throws: [],
+      checkoutAttempts: 0,
+      successfulCheckouts: 0,
+      legsWon: match.stats.player1.legsWon || 0,
+      oneEighties: [],
+      highestCheckout: 0,
+    });
+    setPlayer2State({
+      score: 501,
+      totalDartsThrown: match.stats.player2.dartsThrown || 0,
+      currentLegDartsThrown: 0,
+      totalPointsThrown: 0,
+      throws: [],
+      checkoutAttempts: 0,
+      successfulCheckouts: 0,
+      legsWon: match.stats.player2.legsWon || 0,
+      oneEighties: [],
+      highestCheckout: 0,
+    });
+    setLegs([]);
+    setThrowHistory([]);
+    setCurrentPlayer("player1");
+    setLegStartingPlayer("player1");
+    setMatchType("bo3");
+    setStartingPlayer("player1");
+    setInputScore("");
+    setIsDoubleAttempt(false);
+    setDoubleHit(false);
+    setShowCheckoutPrompt(false);
+    setCheckoutDartsInput("");
+    setDoubleAttemptsInput("");
+    setShowSetup(true);
+    setShowFinishConfirmation(false);
+    setMatchFinished(false);
+  }, [match.matchId]);
 
+  // Handle leg changes, but skip if match is finished or confirming
   useEffect(() => {
-    if (legs.length > 0) {
+    if (legs.length > 0 && !matchFinished && !showFinishConfirmation) {
       setPlayer1State((prev) => ({
         ...prev,
         score: 501,
@@ -142,18 +183,26 @@ export default function DartsCounter({
       setInputScore("");
       setThrowHistory([]);
     }
-  }, [legs]);
+  }, [legs, matchFinished, showFinishConfirmation]);
+
+  // Sync starting player
+  useEffect(() => {
+    setLegStartingPlayer(startingPlayer);
+    setCurrentPlayer(startingPlayer);
+  }, [startingPlayer]);
 
   const handleThrow = async () => {
+    if (matchFinished) return;
+  
     const score = parseInt(inputScore);
     if (isNaN(score) || score < 0 || score > 180) {
       toast.error("Érvénytelen pontszám (0-180 között legyen)");
       return;
     }
-
+  
     const currentState = currentPlayer === "player1" ? player1State : player2State;
     const setCurrentState = currentPlayer === "player1" ? setPlayer1State : setPlayer2State;
-
+  
     let newScore = currentState.score - score;
     let newThrows = [...currentState.throws, { score, isDouble: isDoubleAttempt && doubleHit, darts: 3 }];
     let checkoutAttempts = currentState.checkoutAttempts;
@@ -161,11 +210,11 @@ export default function DartsCounter({
     let oneEighties = [...currentState.oneEighties];
     let highestCheckout = currentState.highestCheckout;
     const newTotalPointsThrown = currentState.totalPointsThrown + score;
-
+  
     if (score === 180) {
       oneEighties.push(currentState.totalDartsThrown + 1);
     }
-
+  
     const requiresDouble = newScore > 0 && newScore <= 170 && checkoutTable[newScore];
     const canDoubleFinish =
       newScore <= 50 || (newScore <= 170 && checkoutTable[newScore] && checkoutTable[newScore].includes("D"));
@@ -173,10 +222,9 @@ export default function DartsCounter({
       checkoutAttempts++;
       if (doubleHit && newScore === 0) {
         successfulCheckouts++;
-        highestCheckout = Math.max(highestCheckout, score);
       }
     }
-
+  
     const throwEntry: ThrowHistoryEntry = {
       player: currentPlayer,
       score,
@@ -194,7 +242,7 @@ export default function DartsCounter({
         highestCheckout,
       },
     };
-
+  
     if (newScore < 0 || (newScore === 0 && requiresDouble && !(isDoubleAttempt && doubleHit))) {
       toast.error("Bust! Túl sok pont vagy dupla szükséges.");
       newThrows.pop();
@@ -204,6 +252,7 @@ export default function DartsCounter({
       const newTotalDartsThrown = currentState.totalDartsThrown + 3;
       if (newScore === 0 && (!requiresDouble || (isDoubleAttempt && doubleHit))) {
         const newLegsWon = currentState.legsWon + 1;
+        highestCheckout = Math.max(highestCheckout, currentState.score); // Use pre-throw score
         setCurrentState((prev) => ({
           ...prev,
           score: newScore,
@@ -218,7 +267,7 @@ export default function DartsCounter({
           highestCheckout,
         }));
         setThrowHistory((prev) => [...prev, throwEntry]);
-
+  
         const newLeg: Leg = {
           player1Throws: player1State.throws.map((throwItem) => ({
             score: throwItem.score,
@@ -229,11 +278,11 @@ export default function DartsCounter({
             darts: throwItem.darts || 0,
           })),
           winnerId: new mongoose.Types.ObjectId(currentPlayer === "player1" ? match.player1Id : match.player2Id),
-          highestCheckout: highestCheckout > 0 ? {
-            score: highestCheckout,
+          highestCheckout: {
+            score: currentState.score, // Checkout score
             darts: 3,
             playerId: new mongoose.Types.ObjectId(currentPlayer === "player1" ? match.player1Id : match.player2Id),
-          } : undefined,
+          },
           oneEighties: { player1: player1State.oneEighties, player2: player2State.oneEighties },
           createdAt: new Date(),
         };
@@ -257,13 +306,80 @@ export default function DartsCounter({
         setCurrentPlayer(currentPlayer === "player1" ? "player2" : "player1");
       }
     }
-
+  
     setInputScore("");
     setIsDoubleAttempt(false);
     setDoubleHit(false);
   };
+  
+  const handleCheckoutSubmit = async () => {
+    if (matchFinished) return;
+  
+    const checkoutDarts = parseInt(checkoutDartsInput);
+    const doubleAttempts = parseInt(doubleAttemptsInput);
+  
+    if (isNaN(checkoutDarts) || checkoutDarts < 1 || checkoutDarts > 3) {
+      toast.error("A kiszálló nyilak száma 1 és 3 között legyen");
+      return;
+    }
+    if (isNaN(doubleAttempts) || doubleAttempts < 1 || doubleAttempts > 3) {
+      toast.error("A dupla nyilak száma 1 és 3 között legyen");
+      return;
+    }
+  
+    const updatedLegs = [...legs];
+    const lastLeg = updatedLegs[updatedLegs.length - 1];
+    lastLeg.checkoutDarts = checkoutDarts;
+    lastLeg.doubleAttempts = doubleAttempts;
+  
+    const currentState = currentPlayer === "player1" ? player1State : player2State;
+    const setCurrentState = currentPlayer === "player1" ? setPlayer1State : setPlayer2State;
+    const checkoutScore = lastLeg.highestCheckout?.score || 0;
+    const updatedState = {
+      ...currentState,
+      checkoutAttempts: currentState.checkoutAttempts + 1,
+      successfulCheckouts: currentState.successfulCheckouts + 1,
+      highestCheckout: Math.max(currentState.highestCheckout, checkoutScore),
+    };
+    setCurrentState(updatedState);
+    setLegs(updatedLegs);
+  
+    const updatedPlayer1Stats = {
+      dartsThrown: player1State.totalDartsThrown,
+      average: calculateAverage(player1State.totalPointsThrown, player1State.totalDartsThrown),
+      legsWon: player1State.legsWon,
+    };
+    const updatedPlayer2Stats = {
+      dartsThrown: player2State.totalDartsThrown,
+      average: calculateAverage(player2State.totalPointsThrown, player2State.totalDartsThrown),
+      legsWon: player2State.legsWon,
+    };
+  
+    await updateMatchStats({
+      player1: updatedPlayer1Stats,
+      player2: updatedPlayer2Stats,
+      legs: updatedLegs,
+    });
+  
+    const targetLegs = { bo3: 2, bo5: 3, bo7: 4 }[matchType];
+    if (currentState.legsWon >= targetLegs) {
+      setShowFinishConfirmation(true);
+    } else {
+      const nextStartingPlayer = legStartingPlayer === "player1" ? "player2" : "player1";
+      setLegStartingPlayer(nextStartingPlayer);
+      setCurrentPlayer(nextStartingPlayer);
+      setInputScore("");
+      toast.success(`${currentPlayer === "player1" ? match.player1Name : match.player2Name} nyerte a leget!`);
+    }
+  
+    setShowCheckoutPrompt(false);
+    setCheckoutDartsInput("");
+    setDoubleAttemptsInput("");
+  };
 
   const handleRevertThrow = async () => {
+    if (matchFinished) return;
+
     if (throwHistory.length === 0) {
       toast.error("Nincs visszavonható dobás");
       return;
@@ -315,121 +431,115 @@ export default function DartsCounter({
     }
   };
 
-  const handleCheckoutSubmit = async () => {
-    const checkoutDarts = parseInt(checkoutDartsInput);
-    const doubleAttempts = parseInt(doubleAttemptsInput);
-
-    if (isNaN(checkoutDarts) || checkoutDarts < 1 || checkoutDarts > 3) {
-      toast.error("A kiszálló nyilak száma 1 és 3 között legyen");
-      return;
-    }
-    if (isNaN(doubleAttempts) || doubleAttempts < 1 || doubleAttempts > 3) {
-      toast.error("A dupla nyilak száma 1 és 3 között legyen");
-      return;
-    }
-
-    const updatedLegs = [...legs];
-    const lastLeg = updatedLegs[updatedLegs.length - 1];
-    lastLeg.checkoutDarts = checkoutDarts;
-    lastLeg.doubleAttempts = doubleAttempts;
-    setLegs(updatedLegs);
-
-    const currentState = currentPlayer === "player1" ? player1State : player2State;
-    const setCurrentState = currentPlayer === "player1" ? setPlayer1State : setPlayer2State;
-    const updatedState = {
-      ...currentState,
-      checkoutAttempts: currentState.checkoutAttempts + 1,
-      successfulCheckouts: currentState.successfulCheckouts + 1,
-    };
-    setCurrentState(updatedState);
-
-    const updatedPlayer1Stats = {
-      dartsThrown: player1State.totalDartsThrown,
-      average: calculateAverage(player1State.totalPointsThrown, player1State.totalDartsThrown),
-      legsWon: player1State.legsWon,
-    };
-    const updatedPlayer2Stats = {
-      dartsThrown: player2State.totalDartsThrown,
-      average: calculateAverage(player2State.totalPointsThrown, player2State.totalDartsThrown),
-      legsWon: player2State.legsWon,
-    };
-
-    await updateMatchStats({
-      player1: updatedPlayer1Stats,
-      player2: updatedPlayer2Stats,
-      legs: updatedLegs,
-    });
-
-    const targetLegs = { bo3: 2, bo5: 3, bo7: 4 }[matchType];
-    if (currentState.legsWon >= targetLegs) {
-      setShowFinishConfirmation(true);
-    } else {
-      const nextStartingPlayer = legStartingPlayer === "player1" ? "player2" : "player1";
-      setLegStartingPlayer(nextStartingPlayer);
-      setCurrentPlayer(nextStartingPlayer);
-      setInputScore("");
-      toast.success(`${currentPlayer === "player1" ? match.player1Name : match.player2Name} nyerte a leget!`);
-    }
-
-    setShowCheckoutPrompt(false);
-    setCheckoutDartsInput("");
-    setDoubleAttemptsInput("");
-  };
-
   const handleFinishConfirmation = async (confirm: boolean) => {
-    if (confirm) {
-      const currentState = currentPlayer === "player1" ? player1State : player2State;
-      const winnerId = currentPlayer === "player1" ? match.player1Id : match.player2Id;
-      const highestCheckout = legs.reduce(
-        (max, leg) => ({
-          player1: leg.highestCheckout?.playerId.toString() === match.player1Id
-            ? Math.max(leg.highestCheckout?.score || 0, max.player1)
-            : max.player1,
-          player2: leg.highestCheckout?.playerId.toString() === match.player2Id
-            ? Math.max(leg.highestCheckout?.score || 0, max.player2)
-            : max.player2,
-        }),
-        { player1: 0, player2: 0 }
-      );
-      const oneEighties = {
-        player1: { count: player1State.oneEighties.length, darts: player1State.oneEighties },
-        player2: { count: player2State.oneEighties.length, darts: player2State.oneEighties },
-      };
-      await handleFinishMatch({
-        winnerId,
-        player1Stats: {
-          legsWon: player1State.legsWon,
-          dartsThrown: player1State.totalDartsThrown,
-          average: calculateAverage(player1State.totalPointsThrown, player1State.totalDartsThrown),
-        },
-        player2Stats: {
-          legsWon: player2State.legsWon,
-          dartsThrown: player2State.totalDartsThrown,
-          average: calculateAverage(player2State.totalPointsThrown, player2State.totalDartsThrown),
-        },
-        highestCheckout,
-        oneEighties,
-      });
-    }
-    setShowFinishConfirmation(false);
-    if (!confirm) {
-      setPlayer1State((prev) => ({
-        ...prev,
-        score: 501,
-        currentLegDartsThrown: 0,
-        throws: [],
-        highestCheckout: 0,
-      }));
-      setPlayer2State((prev) => ({
-        ...prev,
-        score: 501,
-        currentLegDartsThrown: 0,
-        throws: [],
-        highestCheckout: 0,
-      }));
-      setCurrentPlayer(legStartingPlayer === "player1" ? "player2" : "player1");
-      setInputScore("");
-      setThrowHistory([]);
+    setLoading(true);
+    try {
+      if (confirm) {
+        const currentState = currentPlayer === "player1" ? player1State : player2State;
+        const winnerId = currentPlayer === "player1" ? match.player1Id : match.player2Id;
+        const highestCheckout = legs.reduce(
+          (max, leg) => ({
+            player1:
+              leg.highestCheckout?.playerId.toString() === match.player1Id
+                ? Math.max(leg.highestCheckout?.score || 0, max.player1)
+                : max.player1,
+            player2:
+              leg.highestCheckout?.playerId.toString() === match.player2Id
+                ? Math.max(leg.highestCheckout?.score || 0, max.player2)
+                : max.player2,
+          }),
+          { player1: 0, player2: 0 }
+        );
+        const oneEighties = {
+          player1: { count: player1State.oneEighties.length, darts: player1State.oneEighties },
+          player2: { count: player2State.oneEighties.length, darts: player2State.oneEighties },
+        };
+
+        await handleFinishMatch({
+          winnerId,
+          player1Stats: {
+            legsWon: player1State.legsWon,
+            dartsThrown: player1State.totalDartsThrown,
+            average: calculateAverage(player1State.totalPointsThrown, player1State.totalDartsThrown),
+          },
+          player2Stats: {
+            legsWon: player2State.legsWon,
+            dartsThrown: player2State.totalDartsThrown,
+            average: calculateAverage(player2State.totalPointsThrown, player2State.totalDartsThrown),
+          },
+          highestCheckout,
+          oneEighties,
+        });
+
+        // Reset all states
+        setPlayer1State({
+          score: 501,
+          totalDartsThrown: 0,
+          currentLegDartsThrown: 0,
+          totalPointsThrown: 0,
+          throws: [],
+          checkoutAttempts: 0,
+          successfulCheckouts: 0,
+          legsWon: 0,
+          oneEighties: [],
+          highestCheckout: 0,
+        });
+        setPlayer2State({
+          score: 501,
+          totalDartsThrown: 0,
+          currentLegDartsThrown: 0,
+          totalPointsThrown: 0,
+          throws: [],
+          checkoutAttempts: 0,
+          successfulCheckouts: 0,
+          legsWon: 0,
+          oneEighties: [],
+          highestCheckout: 0,
+        });
+        setLegs([]);
+        setThrowHistory([]);
+        setCurrentPlayer("player1");
+        setLegStartingPlayer("player1");
+        setMatchType("bo3");
+        setStartingPlayer("player1");
+        setInputScore("");
+        setIsDoubleAttempt(false);
+        setDoubleHit(false);
+        setShowCheckoutPrompt(false);
+        setCheckoutDartsInput("");
+        setDoubleAttemptsInput("");
+        setShowSetup(true);
+        setShowFinishConfirmation(false);
+        setMatchFinished(true);
+
+        toast.success("Mérkőzés befejezve, következő mérkőzés betöltése...");
+      } else {
+        // Revert to start of new leg
+        setPlayer1State((prev) => ({
+          ...prev,
+          score: 501,
+          currentLegDartsThrown: 0,
+          throws: [],
+          highestCheckout: 0,
+        }));
+        setPlayer2State((prev) => ({
+          ...prev,
+          score: 501,
+          currentLegDartsThrown: 0,
+          throws: [],
+          highestCheckout: 0,
+        }));
+        setLegs((prev) => prev.slice(0, -1)); // Remove last leg
+        setCurrentPlayer(legStartingPlayer === "player1" ? "player2" : "player1");
+        setInputScore("");
+        setThrowHistory([]);
+        setShowFinishConfirmation(false);
+        toast.success("Mérkőzés vége visszavonva");
+      }
+    } catch (error: any) {
+      toast.error(error.message || "Nem sikerült a mérkőzés befejezése");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -443,6 +553,8 @@ export default function DartsCounter({
     player2: { dartsThrown: number; average: number; legsWon: number };
     legs?: Leg[];
   }) => {
+    if (matchFinished) return;
+
     setLoading(true);
     try {
       const res = await fetch(`/api/matches/${match.matchId}/update-stats`, {
@@ -469,6 +581,8 @@ export default function DartsCounter({
   };
 
   const simulateBO3Match = async () => {
+    if (matchFinished) return;
+
     setLoading(true);
     try {
       setPlayer1State({

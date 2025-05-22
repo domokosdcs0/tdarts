@@ -9,7 +9,7 @@ export async function PATCH(request: Request, { params }: { params: { code: stri
     const { code } = await params;
     const { status } = await request.json();
 
-    if (!["created", "started", "paused", "finished"].includes(status)) {
+    if (!["created", "started", "paused", "finished", "knockout"].includes(status)) {
       return NextResponse.json({ error: "Érvénytelen állapot" }, { status: 400 });
     }
 

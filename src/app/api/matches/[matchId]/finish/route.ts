@@ -2,11 +2,12 @@ import { connectMongo } from "@/lib/mongoose";
 import { getModels } from "@/lib/models";
 import { NextResponse } from "next/server";
 import mongoose from "mongoose";
+import { Match } from "@/types/matchSchema";
 
 interface PopulatedMatch {
   _id: string;
   tournamentId: string;
-  groupIndex: number;
+  groupIndex?: number;
   status: string;
   player1: { _id: string; name: string };
   player2: { _id: string; name: string };
@@ -30,6 +31,7 @@ interface PopulatedMatch {
     oneEighties?: { player1: number[]; player2: number[] };
   }[];
   winner?: string;
+  round?: number; // Kör azonosító
 }
 
 export async function PATCH(request: Request, { params }: { params: { matchId: string } }) {
@@ -114,92 +116,171 @@ export async function PATCH(request: Request, { params }: { params: { matchId: s
       },
     };
 
-    // Ensure legs array exists
     if (!match.legs) {
       match.legs = [];
     }
 
-    console.log("Match before save:", {
-      status: match.status,
-      winner: match.winner?.toString(),
-      stats: match.stats,
-      highestCheckout: match.highestCheckout,
-      oneEighties: match.oneEighties,
-      legs: match.legs,
-    });
-
     await match.save();
 
-    // Update tournament standings
+    // Fetch tournament to check status
     const tournament = await TournamentModel.findById(match.tournamentId);
     if (!tournament) return NextResponse.json({ error: "Torna nem található" }, { status: 404 });
 
-    const group = tournament.groups[match.groupIndex];
-    if (!group) return NextResponse.json({ error: "Csoport nem található" }, { status: 404 });
+    if (tournament.status === "knockout") {
+      // Handle knockout stage logic
+      const currentRoundIndex = match.round ? match.round - 1 : 0; // Round is 1-based
+      const currentRound = tournament.knockout.rounds[currentRoundIndex];
+      if (!currentRound) return NextResponse.json({ error: "Érvénytelen kör" }, { status: 400 });
 
-    console.log("Group players:", group.players.map((p: any) => p.playerId.toString()));
+      // Get all matches for the current round
+      const roundMatches = await MatchModel.find({
+        tournamentId: match.tournamentId,
+        round: match.round,
+        isKnockout: true,
+      }).populate("player1 player2 winner");
 
-    // Initialize standings if empty
-    if (!group.standings || group.standings.length === 0) {
-      group.standings = group.players.map((p: any) => ({
-        playerId: p.playerId,
-        points: 0,
-        legsWon: 0,
-        legsLost: 0,
-        legDifference: 0,
-        rank: 0,
-      }));
-      if (!group.standings.some((s: any) => s.playerId.toString() === match.player1._id.toString())) {
-        group.standings.push({ playerId: match.player1._id, points: 0, legsWon: 0, legsLost: 0, legDifference: 0, rank: 0 });
+      console.log("Round matches:", roundMatches.map(m => ({
+        _id: m._id.toString(),
+        player1: m.player1._id.toString(),
+        player2: m.player2._id.toString(),
+        winner: m.winner ? m.winner._id.toString() : null,
+        status: m.status,
+      })));
+
+      // Find the current match and its bracket section
+      const matchIndex = roundMatches.findIndex(m => m._id.toString() === matchId);
+      if (matchIndex === -1) return NextResponse.json({ error: "Mérkőzés nem található a kör mérkőzései között" }, { status: 400 });
+
+      // Determine bracket section (upper/lower)
+      const bracketSectionSize = 2; // Two matches per bracket section
+      const bracketSectionIndex = Math.floor(matchIndex / bracketSectionSize); // Which bracket section (0 for upper, 1 for lower)
+      const partnerMatchIndex = matchIndex % 2 === 0 ? matchIndex + 1 : matchIndex - 1; // Partner match in the same bracket section
+
+      const partnerMatch = roundMatches[partnerMatchIndex] || null;
+
+      if (partnerMatch && partnerMatch.status === "finished" && partnerMatch.winner) {
+        // Both matches in the bracket section are finished, create a new match
+        const boards = await BoardModel.find({ tournamentId: match.tournamentId }).lean();
+        if (boards.length < tournament.boardCount) {
+          return NextResponse.json({ error: "Nem elegendő tábla található" }, { status: 400 });
+        }
+
+        // Assign board based on round number: odd rounds (1, 3, ...) on board 1, even rounds (2, 4, ...) on board 2
+        const nextRoundIndex = currentRoundIndex + 1;
+        const boardIndex = nextRoundIndex % 2 === 0 ? 1 : 0; // Odd rounds -> board 0, even rounds -> board 1
+        const boardId = boards[boardIndex]?._id;
+        if (!boardId) return NextResponse.json({ error: "Nincs elérhető tábla" }, { status: 400 });
+
+        // Create new match for the next round
+        const newMatch = new MatchModel({
+          tournamentId: match.tournamentId,
+          boardId,
+          player1: new mongoose.Types.ObjectId(winnerId),
+          player2: new mongoose.Types.ObjectId(partnerMatch.winner._id.toString()),
+          scorer: null, // Optionally assign a scorer from eliminated players
+          status: "pending",
+          round: nextRoundIndex + 1, // Next round (1-based)
+          isKnockout: true,
+          stats: { player1: { legsWon: 0 }, player2: { legsWon: 0 } },
+        });
+
+        const savedMatch = await newMatch.save();
+
+        // Ensure next round exists in tournament.knockout.rounds
+        if (!tournament.knockout.rounds[nextRoundIndex]) {
+          tournament.knockout.rounds.push({ matches: [] });
+        }
+
+        // Add the new players to the next round's matches (playerIds)
+        tournament.knockout.rounds[nextRoundIndex].matches.push(
+          winnerId,
+          partnerMatch.winner._id.toString()
+        );
+
+        // Update board status
+        await BoardModel.findOneAndUpdate(
+          { _id: boardId },
+          { status: "waiting", updatedAt: new Date() }
+        );
+
+        // Save tournament
+        await tournament.save();
       }
-      if (!group.standings.some((s: any) => s.playerId.toString() === match.player2._id.toString())) {
-        group.standings.push({ playerId: match.player2._id, points: 0, legsWon: 0, legsLost: 0, legDifference: 0, rank: 0 });
+
+      // Check if tournament is finished
+      const finalRound = tournament.knockout.rounds[tournament.knockout.rounds.length - 1];
+      if (finalRound.matches.length === 2) { // Final round has two players (one match)
+        const finalMatch = await MatchModel.findOne({
+          tournamentId: match.tournamentId,
+          round: tournament.knockout.rounds.length,
+          isKnockout: true,
+        }).lean<Match>();
+        if (finalMatch && finalMatch.status === "finished") {
+          await TournamentModel.updateOne(
+            { _id: match.tournamentId },
+            { $set: { status: "finished" } }
+          );
+        }
       }
-      console.log("Initialized standings:", group.standings.map((s: any) => s.playerId.toString()));
-    }
-
-    const player1Standing = group.standings.find((s: any) => s.playerId.toString() === match.player1._id.toString());
-    const player2Standing = group.standings.find((s: any) => s.playerId.toString() === match.player2._id.toString());
-
-    if (player1Standing && player2Standing) {
-      if (winnerId === match.player1._id.toString()) player1Standing.points = (player1Standing.points || 0) + 2;
-      else if (winnerId === match.player2._id.toString()) player2Standing.points = (player2Standing.points || 0) + 2;
-
-      player1Standing.legsWon = (player1Standing.legsWon || 0) + player1LegsWon;
-      player1Standing.legsLost = (player1Standing.legsLost || 0) + player2LegsWon;
-      player1Standing.legDifference = player1Standing.legsWon - player1Standing.legsLost;
-
-      player2Standing.legsWon = (player2Standing.legsWon || 0) + player2LegsWon;
-      player2Standing.legsLost = (player2Standing.legsLost || 0) + player1LegsWon;
-      player2Standing.legDifference = player2Standing.legsWon - player2Standing.legsLost;
     } else {
-      console.error("Standings not found for players:", { player1Standing, player2Standing });
-      return NextResponse.json({ error: "Nem sikerült a csoport állás frissítése" }, { status: 500 });
+      // Handle group stage logic (unchanged)
+      const group = tournament.groups[match.groupIndex];
+      if (!group) return NextResponse.json({ error: "Csoport nem található" }, { status: 404 });
+
+      // Initialize standings if empty
+      if (!group.standings || group.standings.length === 0) {
+        group.standings = group.players.map((p: any) => ({
+          playerId: p.playerId,
+          points: 0,
+          legsWon: 0,
+          legsLost: 0,
+          legDifference: 0,
+          rank: 0,
+        }));
+        if (!group.standings.some((s: any) => s.playerId.toString() === match.player1._id.toString())) {
+          group.standings.push({ playerId: match.player1._id, points: 0, legsWon: 0, legsLost: 0, legDifference: 0, rank: 0 });
+        }
+        if (!group.standings.some((s: any) => s.playerId.toString() === match.player2._id.toString())) {
+          group.standings.push({ playerId: match.player2._id, points: 0, legsWon: 0, legsLost: 0, legDifference: 0, rank: 0 });
+        }
+      }
+
+      const player1Standing = group.standings.find((s: any) => s.playerId.toString() === match.player1._id.toString());
+      const player2Standing = group.standings.find((s: any) => s.playerId.toString() === match.player2._id.toString());
+
+      if (player1Standing && player2Standing) {
+        if (winnerId === match.player1._id.toString()) player1Standing.points = (player1Standing.points || 0) + 2;
+        else if (winnerId === match.player2._id.toString()) player2Standing.points = (player2Standing.points || 0) + 2;
+
+        player1Standing.legsWon = (player1Standing.legsWon || 0) + player1LegsWon;
+        player1Standing.legsLost = (player1Standing.legsLost || 0) + player2LegsWon;
+        player1Standing.legDifference = player1Standing.legsWon - player1Standing.legsLost;
+
+        player2Standing.legsWon = (player2Standing.legsWon || 0) + player2LegsWon;
+        player2Standing.legsLost = (player2Standing.legsLost || 0) + player1LegsWon;
+        player2Standing.legDifference = player2Standing.legsWon - player2Standing.legsLost;
+      } else {
+        console.error("Standings not found for players:", { player1Standing, player2Standing });
+        return NextResponse.json({ error: "Nem sikerült a csoport állás frissítése" }, { status: 500 });
+      }
+
+      // Sort standings
+      group.standings.sort((a: any, b: any) => {
+        if (a.points !== b.points) return (b.points || 0) - (a.points || 0);
+        if (a.legDifference !== b.legDifference) return (b.legDifference || 0) - (a.legDifference || 0);
+        return (b.legsWon || 0) - (a.legsWon || 0);
+      });
+
+      group.standings.forEach((s: any, index: number) => { s.rank = index + 1; });
+
+      await tournament.save();
     }
-
-    // Sort standings
-    group.standings.sort((a: any, b: any) => {
-      if (a.points !== b.points) return (b.points || 0) - (a.points || 0);
-      if (a.legDifference !== b.legDifference) return (b.legDifference || 0) - (a.legDifference || 0);
-      return (b.legsWon || 0) - (a.legsWon || 0);
-    });
-
-    group.standings.forEach((s: any, index: number) => { s.rank = index + 1; });
-
-    // Update board status
-    const boards = await BoardModel.find({ tournamentId: match.tournamentId }).lean();
-    const boardToUpdate = boards[match.groupIndex]?._id;
-    if (boardToUpdate) {
-      await BoardModel.findOneAndUpdate({ _id: boardToUpdate }, { status: "waiting", updatedAt: new Date() });
-    }
-
-    await tournament.save();
 
     // Fetch next match
     const nextMatch = await MatchModel.findOne({
       tournamentId: match.tournamentId,
-      groupIndex: match.groupIndex,
       status: "pending",
+      round: tournament.status === "knockout" ? match.round : undefined,
     })
       .populate("player1", "name")
       .populate("player2", "name")

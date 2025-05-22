@@ -28,10 +28,7 @@ export interface Standing {
 }
 
 export interface GroupPlayer {
-  playerId: {
-    _id: string;
-    name: string;
-  };
+  playerId: { _id: string; name: string };
   number: number;
 }
 
@@ -41,10 +38,15 @@ export interface Match {
   player2: { _id: string; name: string };
   scorer?: { _id: string; name: string };
   status: "pending" | "ongoing" | "finished";
+  groupIndex?: number;
+  player1Number?: number;
+  player2Number?: number;
+  scribeNumber?: number;
   stats?: {
-    player1: { legsWon: number };
-    player2: { legsWon: number };
+    player1: { legsWon: number; average?: number; checkoutRate?: number; dartsThrown?: number };
+    player2: { legsWon: number; average?: number; checkoutRate?: number; dartsThrown?: number };
   };
+  winner?: { _id: string; name: string };
 }
 
 export interface Group {
@@ -64,7 +66,12 @@ export interface Tournament {
   createdAt: string;
   players: Player[];
   groups: Group[];
-  startTime: Date
+  startTime: Date;
+  knockout: {
+    rounds: {
+      matches: Match[];
+    }[];
+  };
 }
 
 export interface Board {
@@ -73,17 +80,14 @@ export interface Board {
   status: "idle" | "waiting" | "playing";
   waitingPlayers: Player[];
   nextMatch?: {
-    player1Name?: string;
-    player2Name?: string;
-    scribeName?: string;
     player1: { _id: string; name: string };
     player2: { _id: string; name: string };
     scorer?: { _id: string; name: string };
   };
   currentMatch?: {
-    player1Name: string;
-    player2Name: string;
-    scribeName: string;
+    player1: { _id: string; name: string };
+    player2: { _id: string; name: string };
+    scorer?: { _id: string; name: string };
     stats: {
       player1Legs: number;
       player2Legs: number;
@@ -232,27 +236,6 @@ export default function TournamentDetailsPage() {
     }
   };
 
-  const updateStatus = async (status: string) => {
-    setLoading(true);
-    try {
-      const res = await fetch(`/api/tournaments/${code}/status`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status }),
-      });
-      if (!res.ok) {
-        const error = await res.json();
-        throw new Error(error.error || "Nem sikerült az állapot módosítása");
-      }
-      await fetchTournament();
-      toast.success("Torna állapota sikeresen módosítva");
-    } catch (error: any) {
-      toast.error(error.message || "Nem sikerült az állapot módosítása");
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const getEliminatedPlayers = useMemo(() => {
     return (groupIndex: number): string[] => {
       if (!tournament || !tournament.groups || !tournament.players) return [];
@@ -292,6 +275,37 @@ export default function TournamentDetailsPage() {
       return eliminatedPlayers;
     };
   }, [tournament]);
+
+  const updateStatus = async (status: string) => {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/tournaments/${code}/status`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      });
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error || "Nem sikerült az állapot módosítása");
+      }
+      if (status === "knockout") {
+        const generateRes = await fetch(`/api/tournaments/${code}/generate-knockout`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+        });
+        if (!generateRes.ok) {
+          const error = await generateRes.json();
+          throw new Error(error.error || "Nem sikerült a kieséses szakasz mérkőzéseinek generálása");
+        }
+      }
+      await fetchTournament();
+      toast.success("Torna állapota sikeresen módosítva");
+    } catch (error: any) {
+      toast.error(error.message || "Nem sikerült az állapot módosítása");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   if (!tournament) {
     return (
@@ -370,7 +384,7 @@ export default function TournamentDetailsPage() {
                 setMatchFilter={setMatchFilter}
               />
               <BoardSection boards={boards} />
-              <BracketSection />
+              <BracketSection tournament={tournament}/>
             </div>
           </div>
         </div>
