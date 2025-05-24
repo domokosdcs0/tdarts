@@ -1,63 +1,125 @@
 'use client';
 
-import { useMemo } from "react";
-import { Bracket } from "react-brackets";
-import { Tournament, Match } from "@/components/tournament/TournamentDetailsPage";
+import { useMemo } from 'react';
+import { Bracket, Seed, SeedItem, SeedTeam, ISeedProps, IRenderSeedProps } from 'react-brackets';
+import { Tournament, Match } from '@/components/tournament/TournamentDetailsPage';
 
 interface BracketSectionProps {
   tournament: Tournament;
 }
 
+// Define the custom seed type that extends ISeedProps
+interface CustomSeed extends ISeedProps {
+  id: string | number;
+  teams: { name: string; score: number | null }[];
+  match: Match;
+}
+
+interface CustomSeedProps {
+  seed: CustomSeed;
+  breakpoint: number;
+  roundIndex: number;
+  seedIndex: number;
+}
+
+const CustomSeed = ({ seed }: CustomSeedProps) => {
+  const { teams, match } = seed;
+  const [team1, team2] = teams;
+
+  // Determine if match is finished and who won
+  const isFinished = match.matchReference?.status === 'finished';
+  const isTeam1Winner = team1.score!  > team2.score!;
+  const isTeam2Winner = team1.score!  < team2.score!;
+
+  console.log(team2.name);
+
+  return (
+    <Seed className="flex items-center">
+      <SeedItem className="border rounded p-2 bg-gray-800">
+        <div>
+          <SeedTeam
+            className={`text-sm ${isTeam1Winner ? 'text-green-500 font-bold' : team1.name === 'TBD' ? 'italic text-gray-300 text-xs' : 'text-white'}`}
+          >
+            {team1.name} {isFinished && team1.score != null ? `(${team1.score})` : ''}
+          </SeedTeam>
+          <SeedTeam
+            className={`text-sm ${isTeam2Winner ? 'text-green-500 font-bold' : team2.name === 'TBD' ? 'italic text-gray-300 text-xs' : 'text-white'}`}
+          >
+            {team2.name} {isFinished && team2.score != null ? `(${team2.score})` : ''}
+          </SeedTeam>
+        </div>
+      </SeedItem>
+    </Seed>
+  );
+};
+
 function BracketSection({ tournament }: BracketSectionProps) {
   // Memoize bracketData to avoid unnecessary recalculations
   const bracketData = useMemo(() => {
-    if (tournament.status !== "knockout" || !tournament.knockout?.rounds) {
+    if (tournament.status !== 'knockout' || !tournament.knockout?.rounds) {
       return { rounds: [] };
     }
 
-   console.log("Tournament data:",  tournament.knockout.rounds)
+    console.log('Tournament data:', tournament.knockout.rounds);
 
     return {
       rounds: tournament.knockout.rounds.map((round, index) => ({
         title:
           index === tournament.knockout.rounds.length - 1
-            ? "Döntő"
+            ? 'Döntő'
             : index === tournament.knockout.rounds.length - 2
-            ? "Elődöntő"
+            ? 'Elődöntő'
             : `Kör ${index + 1}`,
         seeds: (round.matches || []).map((match: Match) => ({
           id: match._id || `placeholder-${index}`,
           teams: [
             {
-              name: match.player1?.name || "TBD",
-              score: match.status === "finished" && match.stats ? match.stats.player1.legsWon : null,
+              name: match.player1?.name || 'TBD',
+              score:
+                match.matchReference?.status === 'finished' && match.matchReference?.stats
+                  ? match.matchReference.stats.player1.legsWon
+                  : null,
             },
             {
-              name: match.player2?.name || "TBD",
-              score: match.status === "finished" && match.stats ? match.stats.player2.legsWon : null,
+              name: match.player2?.name || 'TBD',
+              score:
+                match.matchReference?.status === 'finished' && match.matchReference?.stats
+                  ? match.matchReference.stats.player2.legsWon
+                  : null,
             },
           ],
+          match,
         })),
       })),
     };
   }, [tournament]);
 
-  console.log("Bracket data:", JSON.stringify(bracketData, null, 2));
+  console.log('Bracket data:', JSON.stringify(bracketData, null, 2));
 
-  if (tournament.status !== "knockout") {
+  if (tournament.status !== 'knockout') {
     return (
       <div className="mt-6">
         <h2 className="text-xl font-bold">Főtábla</h2>
-        <p>Jelenleg nincs főtábla. (Kieséses szakasz a /board/[code] oldalon követhető.)</p>
+        <p className="text-white">
+          Jelenleg nincs főtábla. (Kieséses szakasz a /board/[code] oldalon követhető.)
+        </p>
       </div>
     );
   }
 
   return (
     <div className="mt-6">
-      <h2 className="text-xl font-bold">Főtábla</h2>
+      <h2 className="text-xl font-bold ">Főtábla</h2>
       <div className="w-full overflow-x-auto">
-        <Bracket rounds={bracketData.rounds} />
+        <Bracket
+          rounds={bracketData.rounds}
+          renderSeedComponent={(props: IRenderSeedProps) => (
+            <CustomSeed
+              {...props}
+              seed={props.seed as CustomSeed} // Type assertion to include match
+            />
+          )}
+        />
       </div>
     </div>
   );

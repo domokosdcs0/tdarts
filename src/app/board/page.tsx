@@ -200,12 +200,14 @@ export default function BoardPage() {
     if (!tournamentId || !boardNumber) return;
     try {
       const matchRes = await fetch(`/api/boards/${tournamentId}/${boardNumber}/current-match`);
+      setLoading(true);
       if (matchRes.ok) {
         const matchData = await matchRes.json();
         setNextMatch(matchData);
         setIsReady(true);
         localStorage.setItem("matchId", matchData.matchId);
         localStorage.setItem("isReady", "true");
+        setLoading(false);
         return;
       }
       const error = await matchRes.json();
@@ -213,6 +215,7 @@ export default function BoardPage() {
         const nextMatchRes = await fetch(`/api/boards/${tournamentId}/${boardNumber}/next-match`);
         if (!nextMatchRes.ok) {
           const nextError = await nextMatchRes.json();
+          setLoading(false);
           throw new Error(nextError.error || "Nem sikerült a mérkőzés lekérése");
         }
         const matchData = await nextMatchRes.json();
@@ -220,10 +223,13 @@ export default function BoardPage() {
         setIsReady(false);
         localStorage.setItem("matchId", matchData.matchId || "");
         localStorage.setItem("isReady", "false");
+        setLoading(false);
         return;
       }
+      setLoading(false);
       throw new Error(error.error || "Nem sikerült a mérkőzés lekérése");
     } catch (error: any) {
+      setLoading(false);
       console.error("Hiba a folyamatban lévő mérkőzés ellenőrzésekor:", error);
       setNextMatch({ noMatch: true });
       localStorage.removeItem("matchId");
@@ -289,7 +295,7 @@ export default function BoardPage() {
 
       console.log("Sending match result:", matchResult);
 
-      const res = await fetch(`/api/matches/${nextMatch.matchId}/finish`, {
+      const res = await fetch(`/api/matches/${nextMatch.matchId}/${tournamentId}/finish`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(matchResult),
@@ -396,13 +402,27 @@ export default function BoardPage() {
     <main className="min-h-screen w-full bg-base-200 flex items-center justify-center relative">
       {/* Exit Button */}
       {(!isReady || nextMatch?.noMatch) && (
-        <button
-          className="fixed top-4 right-4 btn btn-error btn-lg z-50"
-          onClick={handleExit}
-          disabled={loading}
-        >
-          {loading ? <span className="loading loading-spinner"></span> : "Kilépés a tábláról"}
-        </button>
+        <div className="fixed top-4 right-4 z-40 flex gap-3">
+          <button
+            className="ó btn btn-error btn-lg z-50"
+            onClick={handleExit}
+            disabled={loading}
+          >
+            {loading ? <span className="loading loading-spinner"></span> : "Kilépés a tábláról"}
+          </button>
+          <button
+            onClick={() => {requestFullscreen()}}
+            className=" btn btn-info btn-lg z-50"
+          >
+            {loading ? <span className="loading loading-spinner"></span> : "Teljes képernyő"}
+          </button>
+          <button 
+            onClick={() => checkOngoingMatch(selectedBoard!)}
+            className="btn btn-warning btn-lg z-50"
+          >
+            {loading ? <span className="loading loading-spinner"></span> : "Frissítés"}
+          </button>
+        </div>
       )}
 
       {!tournamentId ? (
@@ -494,7 +514,6 @@ export default function BoardPage() {
                 <button
                   className="btn btn-success btn-outline btn-lg"
                   onClick={() => {
-                    requestFullscreen();
                     handleReady();
                   }}
                   disabled={loading}
@@ -508,7 +527,6 @@ export default function BoardPage() {
                     onClick={() => {
                       setPlayer1Ready(true);
                       if (player2Ready) {
-                        requestFullscreen();
                         handleReady();
                       }
                     }}
@@ -530,7 +548,6 @@ export default function BoardPage() {
                     onClick={() => {
                       setPlayer2Ready(true);
                       if (player1Ready) {
-                        requestFullscreen();
                         handleReady();
                       }
                     }}

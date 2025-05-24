@@ -2,30 +2,30 @@ import mongoose from 'mongoose';
 
 export const TournamentSchema = new mongoose.Schema(
   {
-    code: { type: String, required: true, unique: true }, // Remove index: true
+    code: { type: String, required: true, unique: true },
     name: { type: String, required: true },
     description: { type: String },
     boardCount: { type: Number, required: true },
     tournamentPassword: { type: String, required: true },
-    startTime: {type: Date, required: true},
+    startTime: { type: Date, required: true },
     status: {
       type: String,
-      enum: ["created", "group", "knockout", "finished"],
-      default: "created",
+      enum: ['created', 'group', 'knockout', 'finished'],
+      default: 'created',
     },
-    players: [{ type: mongoose.Schema.Types.ObjectId, ref: "Player" }],
+    players: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Player' }],
     groups: [
       {
         players: [
           {
-            playerId: { type: mongoose.Schema.Types.ObjectId, ref: "Player" },
+            playerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Player' },
             number: { type: Number, required: true },
           },
         ],
-        matches: [{ type: mongoose.Schema.Types.ObjectId, ref: "Match" }],
+        matches: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Match' }],
         standings: [
           {
-            playerId: { type: mongoose.Schema.Types.ObjectId, ref: "Player" },
+            playerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Player' },
             points: { type: Number, default: 0 },
             legsWon: { type: Number, default: 0 },
             legsLost: { type: Number, default: 0 },
@@ -38,7 +38,18 @@ export const TournamentSchema = new mongoose.Schema(
     knockout: {
       rounds: [
         {
-          matches: [{ type: mongoose.Schema.Types.ObjectId, ref: "Match" }],
+          matches: [
+            {
+              _id: { type: mongoose.Schema.Types.ObjectId, default: () => new mongoose.Types.ObjectId() },
+              player1: { type: mongoose.Schema.Types.ObjectId, ref: 'Player', default: null },
+              player2: { type: mongoose.Schema.Types.ObjectId, ref: 'Player', default: null },
+              matchReference: {
+                type: mongoose.Schema.Types.ObjectId,
+                ref: 'Match',
+                default: null,
+              },
+            },
+          ],
         },
       ],
     },
@@ -58,14 +69,14 @@ TournamentSchema.pre('save', function (next) {
 });
 
 export interface Tournament {
-    _id: mongoose.Types.ObjectId;
-    tournamentPassword: string;
+  _id: mongoose.Types.ObjectId;
+  tournamentPassword: string;
   code: string;
   name: string;
   boardCount: number;
   status: 'created' | 'group' | 'knockout' | 'finished';
   players: mongoose.Types.ObjectId[];
-  startTime: Date,
+  startTime: Date;
   groups: {
     players: {
       playerId: mongoose.Types.ObjectId;
@@ -83,8 +94,12 @@ export interface Tournament {
   }[];
   knockout: {
     rounds: {
-      type: mongoose.Schema.Types.ObjectId,
-        ref: "Match"
+      matches: {
+        _id: mongoose.Types.ObjectId;
+        player1: mongoose.Types.ObjectId | null;
+        player2: mongoose.Types.ObjectId | null;
+        matchReference: mongoose.Types.ObjectId | null;
+      }[];
     }[];
   };
   createdAt: Date;

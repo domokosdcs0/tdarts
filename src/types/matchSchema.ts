@@ -42,8 +42,7 @@ export interface Leg {
 export interface Match extends Document {
   _id: mongoose.Types.ObjectId;
   tournamentId: mongoose.Types.ObjectId;
-  boardId?: string;
-  groupIndex: number;
+  boardId: string;
   player1Number: number;
   player2Number: number;
   scribeNumber: number;
@@ -81,7 +80,6 @@ export interface PopulatedMatch extends Omit<Match, 'player1' | 'player2' | 'sco
 export const MatchSchema = new mongoose.Schema({
   tournamentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Tournament', required: true },
   boardId: { type: String },
-  groupIndex: { type: Number, default: 0 },
   player1Number: { type: Number, default: 1 },
   player2Number: { type: Number, default: 2 },
   scribeNumber: { type: Number, default: 0 },
@@ -109,7 +107,7 @@ export const MatchSchema = new mongoose.Schema({
   winner: { type: mongoose.Schema.Types.ObjectId, ref: 'Player' },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now },
-  round: { type: Number },
+  round: { type: Number }, // if knockut is false this will act as the groupIndex
   isKnockout: { type: Boolean, default: false },
 }, { collection: 'matches' });
 

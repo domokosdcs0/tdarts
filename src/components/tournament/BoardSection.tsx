@@ -22,7 +22,7 @@ function BoardSection({ boards }: BoardSectionProps) {
                       ? "text-gray-500"
                       : board.status === "waiting"
                       ? "text-warning"
-                      : "text-success"
+                      : board.status === "playing" && !board.currentMatch && !board.nextMatch ? "text-gray-500" : "text-success"
                   }`}
                 >
                   Állapot:{" "}
@@ -30,7 +30,7 @@ function BoardSection({ boards }: BoardSectionProps) {
                     ? "Üres"
                     : board.status === "waiting"
                     ? "Várakozik"
-                    : "Játékban"}
+                    : board.status === "playing" && !board.currentMatch && !board.nextMatch ? "Üres" : "Játékban"}
                 </p>
                 {board.status === "playing" && board.currentMatch ? (
                   <div className="mt-2">
@@ -46,18 +46,24 @@ function BoardSection({ boards }: BoardSectionProps) {
                       </span>
                     </p>
                     <p className="text-md">
-                      Eredményíró: <span className="font-bold">{board.currentMatch.scribeName}</span>
+                      Eredményíró:{" "}
+                      <span className="font-bold">
+                        {board.currentMatch.scribeName || "Nincs"}
+                      </span>
                     </p>
                   </div>
                 ) : board.status === "waiting" && board.nextMatch ? (
                   <div className="mt-2">
-                    <h4 className="">Következő mérkőzés:</h4>
+                    <h4 className="font-semibold">Következő mérkőzés:</h4>
                     <p className="text-md">
                       <span className="font-bold">{board.nextMatch.player1Name}</span> vs{" "}
                       <span className="font-bold">{board.nextMatch.player2Name}</span>
                     </p>
                     <p className="text-md">
-                      Eredményíró: <span className="font-bold">{board.nextMatch.scribeName}</span>
+                      Eredményíró:{" "}
+                      <span className="font-bold">
+                        {board.nextMatch.scribeName || "Nincs"}
+                      </span>
                     </p>
                   </div>
                 ) : board.waitingPlayers && board.waitingPlayers.length > 0 ? (

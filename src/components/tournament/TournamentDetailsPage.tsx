@@ -32,28 +32,70 @@ export interface GroupPlayer {
   number: number;
 }
 
-export interface Match {
+export interface Player {
   _id: string;
-  player1: { _id: string; name: string };
-  player2: { _id: string; name: string };
-  scorer?: { _id: string; name: string };
-  status: "pending" | "ongoing" | "finished";
-  groupIndex?: number;
-  player1Number?: number;
-  player2Number?: number;
-  scribeNumber?: number;
+  name: string;
   stats?: {
-    player1: { legsWon: number; average?: number; checkoutRate?: number; dartsThrown?: number };
-    player2: { legsWon: number; average?: number; checkoutRate?: number; dartsThrown?: number };
+    matchesWon: number;
+    oneEightiesCount: number;
+    highestCheckout: number;
   };
-  winner?: { _id: string; name: string };
 }
 
 export interface Group {
-  _id: string;
-  players: GroupPlayer[];
-  standings: Standing[];
+  players: {
+    playerId: { _id: string; name: string };
+    number: number;
+  }[];
   matches: Match[];
+  standings: {
+    playerId: { _id: string; name: string };
+    points: number;
+    legsWon: number;
+    legsLost: number;
+    legDifference: number;
+    rank: number;
+  }[];
+}
+
+export interface Match {
+  _id: string;
+  player1: { _id: string; name: string } | null;
+  player2: { _id: string; name: string } | null;
+  matchReference: {
+    _id: string;
+    status: "pending" | "ongoing" | "finished";
+    player1: { _id: string; name: string };
+    player2: { _id: string; name: string };
+    scorer?: { _id: string; name: string };
+    winner?: { _id: string; name: string };
+    stats: {
+      player1: { legsWon: number; average: number; checkoutRate: number; dartsThrown: number };
+      player2: { legsWon: number; average: number; checkoutRate: number; dartsThrown: number };
+    };
+  } | null;
+}
+
+export interface Board {
+  _id: string;
+  boardNumber: number;
+  boardId: string;
+  status: "idle" | "waiting" | "playing";
+  waitingPlayers: { _id: string; name: string }[];
+  nextMatch?: {
+    player1Name: string;
+    player2Name: string;
+    scribeName: string;
+  } | null;
+  currentMatch?: {
+    player1Name: string;
+    player2Name: string;
+    scribeName: string;
+    stats: {
+      player1Legs: number;
+      player2Legs: number;
+    };
+  } | null;
 }
 
 export interface Tournament {
@@ -64,34 +106,13 @@ export interface Tournament {
   boardCount: number;
   description?: string;
   createdAt: string;
+  startTime: Date;
   players: Player[];
   groups: Group[];
-  startTime: Date;
   knockout: {
     rounds: {
       matches: Match[];
     }[];
-  };
-}
-
-export interface Board {
-  _id: string;
-  boardNumber: number;
-  status: "idle" | "waiting" | "playing";
-  waitingPlayers: Player[];
-  nextMatch?: {
-    player1: { _id: string; name: string };
-    player2: { _id: string; name: string };
-    scorer?: { _id: string; name: string };
-  };
-  currentMatch?: {
-    player1: { _id: string; name: string };
-    player2: { _id: string; name: string };
-    scorer?: { _id: string; name: string };
-    stats: {
-      player1Legs: number;
-      player2Legs: number;
-    };
   };
 }
 

@@ -5,125 +5,125 @@ import { v4 as uuidv4 } from "uuid";
 import { Board } from "@/types/boardSchema";
 
 function generateMatches(playerCount: number): { player1Idx: number; player2Idx: number; scorerIdx: number }[] {
-  // Összes lehetséges pár generálása
+  // Generate all possible pairs
   const matches: { player1Idx: number; player2Idx: number }[] = [];
   for (let i = 0; i < playerCount; i++) {
-      for (let j = i + 1; j < playerCount; j++) {
-          matches.push({ player1Idx: i, player2Idx: j });
-      }
+    for (let j = i + 1; j < playerCount; j++) {
+      matches.push({ player1Idx: i, player2Idx: j });
+    }
   }
 
-  // Fisher-Yates keverés
+  // Fisher-Yates shuffle
   function shuffle(array: any[]): void {
-      for (let i = array.length - 1; i > 0; i--) {
-          const j = Math.floor(Math.random() * (i + 1));
-          [array[i], array[j]] = [array[j], array[i]];
-      }
+    for (let i = array.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [array[i], array[j]] = [array[j], array[i]];
+    }
   }
 
-  // Ellenőrzi, hogy egy játékosnak hány egymást követő mérkőzése van
+  // Count consecutive matches for each player
   function countConsecutiveMatches(matches: { player1Idx: number; player2Idx: number }[]): { player: number; count: number }[] {
-      const consecutiveCounts: { [key: number]: number } = {};
-      for (let i = 0; i < playerCount; i++) {
-          consecutiveCounts[i] = 0;
+    const consecutiveCounts: { [key: number]: number } = {};
+    for (let i = 0; i < playerCount; i++) {
+      consecutiveCounts[i] = 0;
+    }
+
+    for (let i = 1; i < matches.length; i++) {
+      const prevMatch = matches[i - 1];
+      const currMatch = matches[i];
+      const prevPlayers = new Set([prevMatch.player1Idx, prevMatch.player2Idx]);
+      const currPlayers = new Set([currMatch.player1Idx, currMatch.player2Idx]);
+
+      for (const player of prevPlayers) {
+        if (currPlayers.has(player)) {
+          consecutiveCounts[player]++;
+        }
       }
+    }
 
-      for (let i = 1; i < matches.length; i++) {
-          const prevMatch = matches[i - 1];
-          const currMatch = matches[i];
-          const prevPlayers = new Set([prevMatch.player1Idx, prevMatch.player2Idx]);
-          const currPlayers = new Set([currMatch.player1Idx, currMatch.player2Idx]);
-
-          for (const player of prevPlayers) {
-              if (currPlayers.has(player)) {
-                  consecutiveCounts[player]++;
-              }
-          }
-      }
-
-      return Object.entries(consecutiveCounts).map(([player, count]) => ({
-          player: parseInt(player),
-          count
-      }));
+    return Object.entries(consecutiveCounts).map(([player, count]) => ({
+      player: parseInt(player),
+      count,
+    }));
   }
 
-  // Próbálkozások a megfelelő mérkőzéssorrend megtalálására
+  // Try to find a valid match order
   const maxAttempts = 1000;
   let attempts = 0;
   let validOrder = false;
 
   while (!validOrder && attempts < maxAttempts) {
-      shuffle(matches);
-      const consecutiveMatches = countConsecutiveMatches(matches);
-      const hasInvalidConsecutive = consecutiveMatches.some(cm => cm.count > 1);
-      const totalConsecutive = consecutiveMatches.reduce((sum, cm) => sum + cm.count, 0);
+    shuffle(matches);
+    const consecutiveMatches = countConsecutiveMatches(matches);
+    const hasInvalidConsecutive = consecutiveMatches.some((cm) => cm.count > 2); // Relaxed to allow up to 2 consecutive matches
 
-      // A sorrend érvényes, ha minden játékosnak max 1 egymást követő mérkőzése van,
-      // és összesen max 1 ilyen eset van
-      if (!hasInvalidConsecutive && totalConsecutive <= 1) {
-          validOrder = true;
-      }
-      attempts++;
+    if (!hasInvalidConsecutive) {
+      validOrder = true;
+    }
+    attempts++;
   }
 
   if (!validOrder) {
-      console.warn(`Nem sikerült ${maxAttempts} próbálkozás alatt érvényes mérkőzéssorrendet találni.`);
+    console.warn(`Nem sikerült ${maxAttempts} próbálkozás alatt érvényes mérkőzéssorrendet találni (playerCount: ${playerCount}).`);
+    // Proceed with the last shuffled order to avoid blocking
   }
 
-  // Pontozók kiosztása egyenletes eloszlással
+  // Assign scorers with balanced distribution
   const scorerCounts: { [key: number]: number } = {};
   for (let i = 0; i < playerCount; i++) {
-      scorerCounts[i] = 0;
+    scorerCounts[i] = 0;
   }
 
-  const finalMatches: { player1Idx: number; player2Idx: number; scorerIdx: number }[] = matches.map(match => {
-      // Lehetséges írók (nem játszó játékosok)
-      const possibleScorers: number[] = [];
-      for (let k = 0; k < playerCount; k++) {
-          if (k !== match.player1Idx && k !== match.player2Idx) {
-              possibleScorers.push(k);
-          }
+  const finalMatches: { player1Idx: number; player2Idx: number; scorerIdx: number }[] = matches.map((match) => {
+    // Possible scorers (exclude playing players)
+    const possibleScorers: number[] = [];
+    for (let k = 0; k < playerCount; k++) {
+      if (k !== match.player1Idx && k !== match.player2Idx) {
+        possibleScorers.push(k);
       }
+    }
 
-      // Író választása: először azok, akik még nem voltak írók, majd a legkevesebb írói szereppel rendelkező
-      let selectedScorer = -1;
-      let minScorerCount = Infinity;
-      const neverScored = possibleScorers.filter(s => scorerCounts[s] === 0);
+    let selectedScorer: number;
+    if (possibleScorers.length === 0) {
+      // For small groups (e.g., 3 players), allow a player to score their own match
+      possibleScorers.push(match.player1Idx, match.player2Idx);
+    }
 
-      if (neverScored.length > 0) {
-          // Ha van olyan, aki még nem volt író, véletlenszerűen választunk közülük
-          selectedScorer = neverScored[Math.floor(Math.random() * neverScored.length)];
-      } else {
-          // Különben a legkevesebb írói szereppel rendelkező közül választunk
-          possibleScorers.forEach(s => {
-              if (scorerCounts[s] < minScorerCount) {
-                  minScorerCount = scorerCounts[s];
-                  selectedScorer = s;
-              } else if (scorerCounts[s] === minScorerCount && Math.random() < 0.5) {
-                  selectedScorer = s;
-              }
-          });
-      }
+    // Select scorer: prefer those who haven't scored, then least scored
+    const neverScored = possibleScorers.filter((s) => scorerCounts[s] === 0);
+    if (neverScored.length > 0) {
+      selectedScorer = neverScored[Math.floor(Math.random() * neverScored.length)];
+    } else {
+      selectedScorer = possibleScorers.reduce((minS, s) =>
+        scorerCounts[s] < scorerCounts[minS] ? s : scorerCounts[s] === scorerCounts[minS] && Math.random() < 0.5 ? s : minS,
+        possibleScorers[0]
+      );
+    }
 
-      // Frissítjük az írói számlálót
-      scorerCounts[selectedScorer]++;
-      return { ...match, scorerIdx: selectedScorer };
+    // Validate selectedScorer
+    if (selectedScorer === undefined || selectedScorer < 0 || selectedScorer >= playerCount) {
+      console.error(`Invalid scorer selected: ${selectedScorer}, possibleScorers: ${possibleScorers}, match:`, match);
+      throw new Error(`Érvénytelen író index: ${selectedScorer}`);
+    }
+
+    scorerCounts[selectedScorer]++;
+    return { ...match, scorerIdx: selectedScorer };
   });
 
-  // Ellenőrizzük, hogy minden játékos legalább egyszer író-e
-  const allScored = Object.values(scorerCounts).every(count => count >= 1);
+  // Check if every player scored at least once
+  const allScored = Object.values(scorerCounts).every((count) => count >= 1);
   if (!allScored) {
-      console.warn("Nem minden játékos volt legalább egyszer író:", scorerCounts);
+    console.warn(`Nem minden játékos volt legalább egyszer író (playerCount: ${playerCount}):`, scorerCounts);
   }
 
   return finalMatches;
 }
 
-export async function POST(request: Request, { params }: { params: { code: string } }) {
+export async function POST(request: Request, { params }: { params: Promise<{ code: string }> }) {
   try {
     await connectMongo();
     const { TournamentModel, BoardModel, MatchModel } = getModels();
-    const { code } = params;
+    const { code } = await params;
 
     const tournament = await TournamentModel.findOne({ code });
     if (!tournament) {
@@ -134,10 +134,13 @@ export async function POST(request: Request, { params }: { params: { code: strin
       return NextResponse.json({ error: "A torna már befejeződött" }, { status: 400 });
     }
 
-    // Töröljük az összes meglévő mérkőzést
+    // Delete existing matches
     await MatchModel.deleteMany({ tournamentId: tournament._id });
 
-    // Töröljük a meglévő csoportokat
+    // Delete existing boards
+    await BoardModel.deleteMany({ tournamentId: tournament._id });
+
+    // Clear groups
     tournament.groups = [];
     await tournament.save();
 
@@ -145,40 +148,46 @@ export async function POST(request: Request, { params }: { params: { code: strin
     const boardCount = tournament.boardCount;
     const playersPerGroup = Math.ceil(players.length / boardCount);
 
-    // Játékosok véletlenszerű keverése
+    // Shuffle players
     for (let i = players.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [players[i], players[j]] = [players[j], players[i]];
     }
 
-        // Töröljük és újrageneráljuk a táblákat
-        await BoardModel.deleteMany({ tournamentId: tournament._id });
-        const boards = [];
-        for (let i = 1; i <= boardCount; i++) {
-          boards.push({
-            tournamentId: tournament._id,
-            boardId: uuidv4(),
-            boardNumber: i,
-            status: "idle",
-            waitingPlayers: [],
-          });
-        }
-        await BoardModel.insertMany(boards);
+    // Generate new boards
+    const boards = [];
+    for (let i = 1; i <= boardCount; i++) {
+      boards.push({
+        tournamentId: tournament._id,
+        boardId: uuidv4(),
+        boardNumber: i,
+        status: "idle",
+        waitingPlayers: [],
+      });
+    }
+    await BoardModel.insertMany(boards);
 
     const groups = [];
+    const savedBoards = await BoardModel.find({ tournamentId: tournament._id }).lean<Board[]>();
+
     for (let groupIndex = 0; groupIndex < boardCount; groupIndex++) {
       const groupPlayers = players.slice(groupIndex * playersPerGroup, (groupIndex + 1) * playersPerGroup);
-      if (groupPlayers.length === 0) continue;
+      if (groupPlayers.length < 2) {
+        console.warn(`Csoport ${groupIndex} túl kevés játékossal (${groupPlayers.length}), kihagyva.`);
+        continue; // Skip groups with fewer than 3 players
+      }
 
       const numberedPlayers = groupPlayers.map((playerId, index) => ({
         playerId,
         number: index + 1,
       }));
 
-      const boards = await BoardModel.find({ tournamentId: tournament._id }).lean<Board[]>();
-      const boardId = boards[groupIndex].boardId;
+      const boardId = savedBoards[groupIndex]?.boardId;
+      if (!boardId) {
+        throw new Error(`Nincs tábla a ${groupIndex} csoport számára`);
+      }
 
-      console.log("Board ID:", boardId);
+      console.log(`Generating matches for group ${groupIndex}, boardId: ${boardId}, players: ${groupPlayers.length}`);
 
       const orderedMatches = generateMatches(numberedPlayers.length);
 
@@ -194,6 +203,8 @@ export async function POST(request: Request, { params }: { params: { code: strin
           player2: numberedPlayers[player2Idx].playerId,
           scorer: numberedPlayers[scorerIdx].playerId,
           status: "pending",
+          round: groupIndex,
+          isKnockout: false,
         });
 
         matches.push(match._id);
@@ -202,19 +213,31 @@ export async function POST(request: Request, { params }: { params: { code: strin
       groups.push({
         players: numberedPlayers,
         matches,
-        standings: [], // Inicializáljuk üresen, ha szükséges
+        standings: numberedPlayers.map((p) => ({
+          playerId: p.playerId,
+          points: 0,
+          legsWon: 0,
+          legsLost: 0,
+          legDifference: 0,
+          rank: 0,
+        })),
       });
     }
 
-
+    if (groups.length === 0) {
+      throw new Error("Nem sikerült csoportokat generálni: túl kevés játékos");
+    }
 
     tournament.groups = groups;
     tournament.status = "group";
     await tournament.save();
 
     return NextResponse.json({ message: "Csoportok és mérkőzések sikeresen újragenerálva" });
-  } catch (error) {
-    console.error("Hiba a csoportok újragenerálásakor:", error);
-    return NextResponse.json({ error: "Nem sikerült a csoportok újragenerálása" }, { status: 500 });
+  } catch (error: any) {
+    console.error(`Hiba a csoportok újragenerálásakor (code: ${(await params).code}):`, error);
+    return NextResponse.json(
+      { error: `Nem sikerült a csoportok újragenerálása: ${error.message}` },
+      { status: 500 }
+    );
   }
 }

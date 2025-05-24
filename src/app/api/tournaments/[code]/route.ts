@@ -8,11 +8,13 @@ import { Tournament } from "@/types/tournamentSchema";
 interface PopulatedMatch {
   _id: string;
   tournamentId: string;
-  groupIndex?: number;
+  round?: number;
+  isKnockout: boolean;
+  boardId?: string;
   player1Number?: number;
   player2Number?: number;
   scribeNumber?: number;
-  status: string;
+  status: "pending" | "ongoing" | "finished";
   player1: { _id: string; name: string };
   player2: { _id: string; name: string };
   scorer?: { _id: string; name: string };
@@ -20,7 +22,7 @@ interface PopulatedMatch {
     player1: { legsWon: number; average: number; checkoutRate: number; dartsThrown: number };
     player2: { legsWon: number; average: number; checkoutRate: number; dartsThrown: number };
   };
-  winner?: string;
+  winner?: { _id: string; name: string };
   legs: {
     player1Throws: { score: number; darts: number }[];
     player2Throws: { score: number; darts: number }[];
@@ -61,6 +63,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ code
           { path: "player1", select: "name" },
           { path: "player2", select: "name" },
           { path: "scorer", select: "name" },
+          { path: "winner", select: "name" },
         ],
       })
       .populate({
@@ -68,7 +71,15 @@ export async function GET(request: Request, { params }: { params: Promise<{ code
         select: "name",
       })
       .populate({
-        path: "knockout.rounds.matches",
+        path: "knockout.rounds.matches.player1",
+        select: "name",
+      })
+      .populate({
+        path: "knockout.rounds.matches.player2",
+        select: "name",
+      })
+      .populate({
+        path: "knockout.rounds.matches.matchReference",
         populate: [
           { path: "player1", select: "name" },
           { path: "player2", select: "name" },
@@ -77,6 +88,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ code
         ],
       })
       .lean<Tournament>();
+
     if (!tournament) {
       return NextResponse.json({ error: "Torna nem található" }, { status: 404 });
     }
@@ -168,9 +180,9 @@ export async function GET(request: Request, { params }: { params: Promise<{ code
             ...board,
             nextMatch: nextMatch
               ? {
-                  player1: nextMatch.player1,
-                  player2: nextMatch.player2,
-                  scorer: nextMatch.scorer,
+                  player1Name: nextMatch.player1.name,
+                  player2Name: nextMatch.player2.name,
+                  scribeName: nextMatch.scorer?.name || "Nincs",
                 }
               : null,
           };
@@ -189,9 +201,9 @@ export async function GET(request: Request, { params }: { params: Promise<{ code
             ...board,
             currentMatch: currentMatch
               ? {
-                  player1: currentMatch.player1,
-                  player2: currentMatch.player2,
-                  scorer: currentMatch.scorer,
+                  player1Name: currentMatch.player1.name,
+                  player2Name: currentMatch.player2.name,
+                  scribeName: currentMatch.scorer?.name || "Nincs",
                   stats: {
                     player1Legs: currentMatch.stats?.player1?.legsWon || 0,
                     player2Legs: currentMatch.stats?.player2?.legsWon || 0,

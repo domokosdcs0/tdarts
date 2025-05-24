@@ -28,8 +28,6 @@ export async function GET(
     const boards = await BoardModel.find({}).lean<Board[]>();
     const board = boards[groupIndex]
 
-    console.log(board)
-
     // Keresünk egy pending mérkőzést az adott csoportban
     const match = await MatchModel.findOne({
       tournamentId,

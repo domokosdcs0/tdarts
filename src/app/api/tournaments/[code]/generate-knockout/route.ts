@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { connectMongo } from "@/lib/mongoose";
 import { getModels } from "@/lib/models";
 import mongoose from "mongoose";
+import { Match } from "@/types/matchSchema";
 
 // Local Tournament interface for non-populated data
 interface Tournament {
@@ -31,7 +32,12 @@ interface Tournament {
   }[];
   knockout: {
     rounds: {
-      matches: string[];
+      matches: {
+        _id: string;
+        player1: string | null;
+        player2: string | null;
+        matchReference: string | null;
+      }[];
     }[];
   };
   createdAt: Date;
@@ -50,7 +56,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ cod
     }
 
 
-
     // Log raw standings for debugging
     console.log("Raw standings:", tournament.groups.map((g) => g.standings));
 
@@ -62,19 +67,26 @@ export async function POST(request: Request, { params }: { params: Promise<{ cod
     // Get all standings, validate playerId
     const allStandings = tournament.groups.flatMap((group) =>
       group.standings
-        .filter((standing): standing is { playerId: string; points: number; legsWon: number; legsLost: number; legDifference: number; rank: number } =>
-          standing.playerId != null &&
-          (typeof standing.playerId === "string" || standing.playerId instanceof mongoose.Types.ObjectId) &&
-          mongoose.Types.ObjectId.isValid(standing.playerId.toString())
+        .filter(
+          (standing): standing is {
+            playerId: string;
+            points: number;
+            legsWon: number;
+            legsLost: number;
+            legDifference: number;
+            rank: number;
+          } =>
+            standing.playerId != null &&
+            (typeof standing.playerId === "string" || standing.playerId instanceof mongoose.Types.ObjectId) &&
+            mongoose.Types.ObjectId.isValid(standing.playerId.toString())
         )
         .map((standing) => ({
           ...standing,
-          playerId: standing.playerId.toString(), // Convert to string
+          playerId: standing.playerId.toString(),
           groupId: group._id,
         }))
     );
 
-    // Log filtered standings
     console.log("Filtered standings:", allStandings);
 
     if (allStandings.length < qualifyingPlayersCount) {
@@ -89,7 +101,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ cod
       );
     }
 
-    // Calculate eliminated players (from getEliminatedPlayers)
+    // Calculate eliminated players
     const groupsCount = tournament.groups.length;
     const groupSizes = tournament.groups.map((group) => group.players?.length || 0);
     const totalGroupPlayers = groupSizes.reduce((sum: number, size: number) => sum + size, 0);
@@ -101,30 +113,42 @@ export async function POST(request: Request, { params }: { params: Promise<{ cod
     let currentTotal = eliminationsPerGroup.reduce((sum: number, count: number) => sum + count, 0);
     while (currentTotal !== eliminatedPlayersCount) {
       const diff = eliminatedPlayersCount - currentTotal;
-      const indexToAdjust = diff > 0
-        ? groupSizes.findIndex((size: number, i: number) => eliminationsPerGroup[i] < size)
-        : groupSizes.findIndex((size: number, i: number) => eliminationsPerGroup[i] > 0);
+      const indexToAdjust =
+        diff > 0
+          ? groupSizes.findIndex((size: number, i: number) => eliminationsPerGroup[i] < size)
+          : groupSizes.findIndex((size: number, i: number) => eliminationsPerGroup[i] > 0);
       if (indexToAdjust === -1) break;
       eliminationsPerGroup[indexToAdjust] += diff > 0 ? 1 : -1;
       currentTotal += diff > 0 ? 1 : -1;
     }
 
     // Collect eliminated player IDs
-    const eliminatedPlayerIds: string[] = tournament.groups.reduce((acc: string[], group, index: number) => {
-      const eliminatedInGroup = eliminationsPerGroup[index] || 0;
-      if (eliminatedInGroup <= 0 || !group.standings) return acc;
-      const sortedStandings = [...group.standings]
-        .filter((s): s is { playerId: string | mongoose.Types.ObjectId; points: number; legsWon: number; legsLost: number; legDifference: number; rank: number } =>
-          s.playerId != null &&
-          (typeof s.playerId === "string" || s.playerId instanceof mongoose.Types.ObjectId) &&
-          mongoose.Types.ObjectId.isValid(s.playerId.toString())
-        )
-        .sort((a, b) => (a.rank || 0) - (b.rank || 0));
-      const groupEliminated = sortedStandings
-        .slice(-eliminatedInGroup)
-        .map((s) => s.playerId.toString());
-      return [...acc, ...groupEliminated];
-    }, []);
+    const eliminatedPlayerIds: string[] = tournament.groups.reduce(
+      (acc: string[], group, index: number) => {
+        const eliminatedInGroup = eliminationsPerGroup[index] || 0;
+        if (eliminatedInGroup <= 0 || !group.standings) return acc;
+        const sortedStandings = [...group.standings]
+          .filter(
+            (s): s is {
+              playerId: string | mongoose.Types.ObjectId;
+              points: number;
+              legsWon: number;
+              legsLost: number;
+              legDifference: number;
+              rank: number;
+            } =>
+              s.playerId != null &&
+              (typeof s.playerId === "string" || s.playerId instanceof mongoose.Types.ObjectId) &&
+              mongoose.Types.ObjectId.isValid(s.playerId.toString())
+          )
+          .sort((a, b) => (a.rank || 0) - (b.rank || 0));
+        const groupEliminated = sortedStandings
+          .slice(-eliminatedInGroup)
+          .map((s) => s.playerId.toString());
+        return [...acc, ...groupEliminated];
+      },
+      []
+    );
 
     // Get qualifying standings
     const qualifyingStandings = allStandings
@@ -158,7 +182,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ cod
     // Create pairings: Group 1's 1st vs Group 2's last, etc.
     const pairings: { player1: string; player2: string }[] = [];
     const group1 = groupStandings[0].standings;
-    const group2 = groupStandings[1].standings.reverse(); // Reverse to pair top with bottom
+    const group2 = groupStandings[1].standings.reverse();
     for (let i = 0; i < Math.min(group1.length, group2.length); i++) {
       if (group1[i] && group2[i]) {
         pairings.push({
@@ -175,11 +199,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ cod
     }
 
     // Generate first-round matches
-    const matches: any[] = [];
+    const matches = [];
+    const knockoutMatches: any[] = [];
     for (let i = 0; i < pairings.length; i++) {
       const { player1, player2 } = pairings[i];
-      const boardId = boards[i % boards.length].boardId; // Distribute across boards
-      const scorer = eliminatedPlayerIds[i % eliminatedPlayerIds.length] || null; // Use eliminated players as scorers
+      const boardId = boards[i % boards.length].boardId;
+      const scorer = eliminatedPlayerIds[i % eliminatedPlayerIds.length] || null;
       const match = new MatchModel({
         tournamentId: new mongoose.Types.ObjectId(tournament._id),
         boardId,
@@ -192,6 +217,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ cod
         stats: { player1: { legsWon: 0 }, player2: { legsWon: 0 } },
       });
       matches.push(match);
+      knockoutMatches.push({
+        _id: new mongoose.Types.ObjectId(),
+        player1,
+        player2,
+        matchReference: match._id,
+      });
     }
 
     if (matches.length === 0) {
@@ -205,18 +236,43 @@ export async function POST(request: Request, { params }: { params: Promise<{ cod
     // Save matches
     const savedMatches = await MatchModel.insertMany(matches);
 
-    // Initialize knockout rounds (only first round for now)
+    // Initialize knockout rounds
     const roundsCount = Math.log2(qualifyingPlayersCount);
-    tournament.knockout = {
-      rounds: Array.from({ length: roundsCount }, (_, i) => ({
-        matches: i === 0 ? savedMatches.map((m: any) => m._id.toString()) : [],
-      })),
-    };
+    const knockoutRounds = Array.from({ length: roundsCount }, (_, i) => {
+      if (i === 0) {
+        return { matches: knockoutMatches as any[] };
+      }
+      // Pre-create matches for future rounds with no players
+      const matchCount = qualifyingPlayersCount / Math.pow(2, i + 1);
+      return {
+        matches: Array.from({ length: matchCount }, () => ({
+          _id: new mongoose.Types.ObjectId(),
+          player1: null,
+          player2: null,
+          matchReference: null,
+        })),
+      };
+    });
 
     // Update tournament
     await TournamentModel.updateOne(
       { code },
-      { $set: { knockout: tournament.knockout, status: "knockout" } }
+      {
+        $set: {
+          knockout: { rounds: knockoutRounds },
+          status: "knockout",
+        },
+      }
+    );
+
+    // Update board statuses
+    await Promise.all(
+      boards.slice(0, Math.min(matches.length, boards.length)).map((board) =>
+        BoardModel.updateOne(
+          { _id: board._id },
+          { status: "waiting", updatedAt: new Date() }
+        )
+      )
     );
 
     return NextResponse.json({ success: true });
