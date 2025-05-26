@@ -32,16 +32,6 @@ export interface GroupPlayer {
   number: number;
 }
 
-export interface Player {
-  _id: string;
-  name: string;
-  stats?: {
-    matchesWon: number;
-    oneEightiesCount: number;
-    highestCheckout: number;
-  };
-}
-
 export interface Group {
   players: {
     playerId: { _id: string; name: string };
@@ -114,6 +104,10 @@ export interface Tournament {
       matches: Match[];
     }[];
   };
+  standing?: {
+    playerId: string;
+    rank: number;
+  }[];
 }
 
 export default function TournamentDetailsPage() {
@@ -122,7 +116,7 @@ export default function TournamentDetailsPage() {
   const [boards, setBoards] = useState<Board[]>([]);
   const [isModerator, setIsModerator] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [sortBy, setSortBy] = useState<"name" | "ranking">("name");
+  const [sortBy, setSortBy] = useState<"name" | "ranking" | "standings">("name");
   const [loading, setLoading] = useState(false);
   const [matchFilter, setMatchFilter] = useState<"all" | "pending" | "ongoing" | "finished">("all");
   const [secondsUntilRefresh, setSecondsUntilRefresh] = useState(10);
@@ -257,6 +251,26 @@ export default function TournamentDetailsPage() {
     }
   };
 
+  const handleFinish = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/tournaments/${code}/finish`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error || "Nem sikerült a torna befejezése");
+      }
+      await fetchTournament();
+      toast.success("Torna sikeresen befejezve");
+    } catch (error: any) {
+      toast.error(error.message || "Nem sikerült a torna befejezése");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const getEliminatedPlayers = useMemo(() => {
     return (groupIndex: number): string[] => {
       if (!tournament || !tournament.groups || !tournament.players) return [];
@@ -352,6 +366,7 @@ export default function TournamentDetailsPage() {
           loading={loading}
           code={code as string}
           autoFetch={autoFetch}
+          tournament={tournament} // Pass tournament to access standings
         />
         <div className="flex-1">
           <div className="card bg-base-100 shadow-xl">
@@ -361,27 +376,20 @@ export default function TournamentDetailsPage() {
                   <button
                     className="btn btn-primary"
                     onClick={regenerateGroups}
-                    disabled={loading || tournament.status === "finished"}
+                    disabled={loading || tournament.status === "finished" || tournament.status === "knockout"}
                   >
                     Csoportok újragenerálása
                   </button>
                   <button
-                    className="btn btn-success"
-                    onClick={() => updateStatus("group")}
-                    disabled={loading || tournament.status !== "created"}
-                  >
-                    Csoportkör indítása
-                  </button>
-                  <button
                     className="btn btn-warning"
                     onClick={() => updateStatus("knockout")}
-                    disabled={loading || tournament.status !== "group"}
+                    disabled={loading || tournament.status === "finished" || tournament.status === "knockout"}
                   >
                     Kieséses szakasz indítása
                   </button>
                   <button
                     className="btn btn-error"
-                    onClick={() => updateStatus("finished")}
+                    onClick={handleFinish}
                     disabled={loading || !["group", "knockout"].includes(tournament.status)}
                   >
                     Torna befejezése
@@ -405,7 +413,7 @@ export default function TournamentDetailsPage() {
                 setMatchFilter={setMatchFilter}
               />
               <BoardSection boards={boards} />
-              <BracketSection tournament={tournament}/>
+              <BracketSection tournament={tournament} />
             </div>
           </div>
         </div>

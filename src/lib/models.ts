@@ -1,4 +1,4 @@
-import {BoardSchema, MatchSchema, PlayerSchema, TournamentSchema, PlayerTournamentHistorySchema}  from '@/types/index'
+import {BoardSchema, MatchSchema, PlayerSchema, TournamentSchema, PlayerTournamentHistorySchema, ClubSchema}  from '@/types/index'
 import mongoose from 'mongoose'
 
 export function getModels() {
@@ -8,5 +8,6 @@ export function getModels() {
       PlayerTournamentHistoryModel: mongoose.models.PlayerTournamentHistory || mongoose.model('PlayerTournamentHistory', PlayerTournamentHistorySchema),
       MatchModel: mongoose.models.Match || mongoose.model('Match', MatchSchema),
       BoardModel: mongoose.models.Board || mongoose.model('Board', BoardSchema),
+      ClubModel: mongoose.models.Club || mongoose.model('Club', ClubSchema),
     };
   }

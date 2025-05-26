@@ -56,7 +56,7 @@ const CustomSeed = ({ seed }: CustomSeedProps) => {
 function BracketSection({ tournament }: BracketSectionProps) {
   // Memoize bracketData to avoid unnecessary recalculations
   const bracketData = useMemo(() => {
-    if (tournament.status !== 'knockout' || !tournament.knockout?.rounds) {
+    if ( !tournament.knockout?.rounds) {
       return { rounds: [] };
     }
 
@@ -94,14 +94,14 @@ function BracketSection({ tournament }: BracketSectionProps) {
     };
   }, [tournament]);
 
-  console.log('Bracket data:', JSON.stringify(bracketData, null, 2));
+  console.log(tournament)
 
-  if (tournament.status !== 'knockout') {
+  if (tournament.status === 'group') {
     return (
       <div className="mt-6">
         <h2 className="text-xl font-bold">Főtábla</h2>
-        <p className="text-white">
-          Jelenleg nincs főtábla. (Kieséses szakasz a /board/[code] oldalon követhető.)
+        <p className="">
+          Jelenleg nincs főtábla.
         </p>
       </div>
     );

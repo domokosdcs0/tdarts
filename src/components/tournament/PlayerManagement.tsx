@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { Player } from "./TournamentDetailsPage";
+import { Player, Tournament } from "./TournamentDetailsPage";
 
 const playerSchema = z.object({
   playerInput: z.string().min(1, "A játékos neve kötelező"),
@@ -14,15 +14,16 @@ interface PlayerManagementProps {
   players: Player[];
   isModerator: boolean;
   isSidebarOpen: boolean;
-  sortBy: "name" | "ranking";
+  sortBy: "name" | "ranking" | "standings";
   secondsUntilRefresh: number;
   setIsSidebarOpen: (open: boolean) => void;
-  setSortBy: (sortBy: "name" | "ranking") => void;
+  setSortBy: (sortBy: "name" | "ranking" | "standings") => void;
   addPlayer: (name: string) => Promise<void>;
   removePlayer: (playerId: string) => Promise<void>;
   loading: boolean;
   code: string;
-  autoFetch: boolean
+  autoFetch: boolean;
+  tournament: Tournament;
 }
 
 function PlayerManagement({
@@ -37,7 +38,8 @@ function PlayerManagement({
   removePlayer,
   loading,
   code,
-  autoFetch
+  autoFetch,
+  tournament,
 }: PlayerManagementProps) {
   const [playerSuggestions, setPlayerSuggestions] = useState<string[]>([]);
 
@@ -63,9 +65,21 @@ function PlayerManagement({
   const sortedPlayers = [...players].sort((a, b) => {
     if (sortBy === "name") {
       return a.name.localeCompare(b.name, "hu", { sensitivity: "base" });
+    } else if (sortBy === "ranking") {
+      return (b.stats?.matchesWon || 0) - (a.stats?.matchesWon || 0);
+    } else if (sortBy === "standings" && tournament.standing) {
+      const rankA = tournament.standing.find((s) => s.playerId === a._id)?.rank || Infinity;
+      const rankB = tournament.standing.find((s) => s.playerId === b._id)?.rank || Infinity;
+      return rankA - rankB;
     }
-    return (b.stats?.matchesWon || 0) - (a.stats?.matchesWon || 0);
+    return 0;
   });
+
+  const getPlayerRank = (playerId: string) => {
+    if (!tournament.standing) return null;
+    const standing = tournament.standing.find((s) => s.playerId === playerId);
+    return standing ? `Top ${standing.rank}` : null;
+  };
 
   return (
     <div className={`sidebar md:w-1/4 ${isSidebarOpen ? "sidebar-open" : "sidebar-closed"}`}>
@@ -85,15 +99,25 @@ function PlayerManagement({
           ></div>
         )}
         <h2 className="text-xl font-bold mb-4">Játékosok</h2>
-        <div className="flex gap-2 mb-4 items-center justify-between">
-          <button
-            className={`btn btn-sm btn-outline`}
-            onClick={() => setSortBy("name")}
-          >
-            Betűrend
-          </button>
-          {autoFetch? (
-              <span className="text-sm font-medium">
+        <div className="flex gap-2 mb-4 items-center justify-between flex-wrap">
+          <div className="flex gap-2">
+            <button
+              className={`btn btn-sm btn-outline ${sortBy === "name" ? "btn-active" : ""}`}
+              onClick={() => setSortBy("name")}
+            >
+              Betűrend
+            </button>
+            {tournament.standing && tournament.standing.length > 0 && (
+              <button
+                className={`btn btn-sm btn-outline ${sortBy === "standings" ? "btn-active" : ""}`}
+                onClick={() => setSortBy("standings")}
+              >
+                Helyezések
+              </button>
+            )}
+          </div>
+          {autoFetch ? (
+            <span className="text-sm font-medium">
               Következő frissítés: {secondsUntilRefresh} mp
             </span>
           ) : (
@@ -160,19 +184,28 @@ function PlayerManagement({
                 index % 2 === 0 ? "bg-base-200" : ""
               } hover:bg-primary/10 transition-colors`}
             >
-              <span className="text-base font-medium">
-                {player.name}
-                {player.stats && player.stats.oneEightiesCount > 0 && (
-                  <span className="ml-2 text-sm text-success">
-                    ({player.stats.oneEightiesCount}x180)
-                  </span>
-                )}
-                {player.stats && player.stats.highestCheckout > 80 && (
-                  <span className="ml-2 text-sm text-info">
-                    (HC: {player.stats.highestCheckout})
-                  </span>
-                )}
-              </span>
+              <div className="flex flex-col">
+                <span className="text-base font-medium">
+                  {player.name}
+                  {getPlayerRank(player._id) && (
+                    <span className="ml-2 text-sm text-primary">
+                      ({getPlayerRank(player._id)})
+                    </span>
+                  )}
+                </span>
+                <div className="text-sm">
+                  {player.stats && player.stats.oneEightiesCount > 0 && (
+                    <span className="text-success mr-2">
+                      {player.stats.oneEightiesCount}x180
+                    </span>
+                  )}
+                  {player.stats && player.stats.highestCheckout > 80 && (
+                    <span className="text-info">
+                      HC: {player.stats.highestCheckout}
+                    </span>
+                  )}
+                </div>
+              </div>
               {isModerator && (
                 <button
                   className="btn btn-error btn-sm"

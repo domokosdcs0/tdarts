@@ -12,6 +12,7 @@ export const PlayerSchema = new mongoose.Schema({
   },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now },
+  clubId: { type: mongoose.Schema.Types.ObjectId, ref: 'Club' }, // Hivatkozás a klubra
 }, { collection: 'players' });
 
 // Indexek
@@ -25,6 +26,10 @@ PlayerSchema.pre('save', function (next) {
 
 export interface Player {
   name: string;
+  club?: {
+    name: string
+    _id: mongoose.Types.ObjectId;
+  }
   overallStats: {
     average: number;
     checkoutRate: number;

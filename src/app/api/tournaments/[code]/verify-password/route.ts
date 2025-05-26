@@ -14,11 +14,11 @@ export async function POST(request: Request, { params }: { params: { code: strin
       return NextResponse.json({ error: "Jelszó megadása kötelező" }, { status: 400 });
     }
 
-    const tournament = await TournamentModel.findOne({ code }).select("tournamentPassword").lean<Tournament>();
+    const tournament = await TournamentModel.findOne({ code }).select("moderatorPassword").lean<Tournament>();
     if (!tournament) {
       return NextResponse.json({ error: "Torna nem található" }, { status: 404 });
     }
-    if (tournament.tournamentPassword !== password) {
+    if (tournament.moderatorPassword !== password) {
       return NextResponse.json({ error: "Helytelen jelszó" }, { status: 401 });
     }
 

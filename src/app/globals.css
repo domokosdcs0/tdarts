@@ -1,7 +1,6 @@
 @import "tailwindcss";
 @plugin "daisyui";
 
-
 @plugin "daisyui/theme" {
   name: "neonbird";
   default: false;
@@ -37,11 +36,10 @@
   --noise: 1;
 }
 
-
 @plugin "daisyui/theme" {
   name: "emerald";
   default: true;
-  prefersdark: false;
+  prefersdark: true;
   color-scheme: "light";
   --color-base-100: oklch(98% 0 0);
   --color-base-200: oklch(96% 0.001 286.375);

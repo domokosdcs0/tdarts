@@ -42,6 +42,48 @@ interface PopulatedMatch {
   }[];
 }
 
+// Populated Tournament interface for response
+interface PopulatedTournament extends Omit<Tournament, "players" | "groups" | "knockout" | "standing"> {
+  players: {
+    _id: mongoose.Types.ObjectId;
+    name: string;
+    stats?: {
+      matchesWon: number;
+      oneEightiesCount: number;
+      highestCheckout: number;
+    };
+  }[];
+  groups: {
+    players: {
+      playerId: { _id: string; name: string };
+      number: number;
+    }[];
+    matches: PopulatedMatch[];
+    standings: {
+      playerId: { _id: string; name: string };
+      points: number;
+      legsWon: number;
+      legsLost: number;
+      legDifference: number;
+      rank?: number;
+    }[];
+  }[];
+  knockout: {
+    rounds: {
+      matches: {
+        _id: string;
+        player1: { _id: string; name: string } | null;
+        player2: { _id: string; name: string } | null;
+        matchReference: PopulatedMatch | null;
+      }[];
+    }[];
+  };
+  standing?: {
+    playerId: string;
+    rank: number;
+  }[];
+}
+
 export async function GET(request: Request, { params }: { params: Promise<{ code: string }> }) {
   try {
     await connectMongo();
@@ -87,7 +129,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ code
           { path: "winner", select: "name" },
         ],
       })
-      .lean<Tournament>();
+      .lean<PopulatedTournament>();
 
     if (!tournament) {
       return NextResponse.json({ error: "Torna nem található" }, { status: 404 });
@@ -103,20 +145,28 @@ export async function GET(request: Request, { params }: { params: Promise<{ code
       .populate("player2", "name")
       .lean<PopulatedMatch[]>();
 
-    const playerStats: { [key: string]: { oneEightiesCount: number; highestCheckout: number } } = {};
+    const playerStats: { [key: string]: { oneEightiesCount: number; highestCheckout: number; matchesWon: number } } = {};
 
     // Initialize stats for each player
     tournament.players.forEach((player) => {
       playerStats[player._id.toString()] = {
         oneEightiesCount: 0,
         highestCheckout: 0,
+        matchesWon: 0,
       };
     });
 
-    // Aggregate stats from legs in matches
+    // Aggregate stats from legs and matches
     matches.forEach((match) => {
       const player1Id = match.player1._id.toString();
       const player2Id = match.player2._id.toString();
+
+      // Count matches won
+      if (match.winner) {
+        const winnerId = match.winner._id.toString();
+        if (winnerId === player1Id) playerStats[player1Id].matchesWon += 1;
+        else if (winnerId === player2Id) playerStats[player2Id].matchesWon += 1;
+      }
 
       match.legs.forEach((leg) => {
         // Count 180s
@@ -144,16 +194,18 @@ export async function GET(request: Request, { params }: { params: Promise<{ code
     });
 
     // Update tournament players with aggregated stats
-    const updatedTournament = {
+    const updatedTournament: PopulatedTournament = {
       ...tournament,
       players: tournament.players.map((player) => ({
         ...player,
         stats: {
-          matchesWon: 0, // Default, as matchesWon isn't provided in matches.stats
+          matchesWon: playerStats[player._id.toString()].matchesWon,
           oneEightiesCount: playerStats[player._id.toString()].oneEightiesCount,
           highestCheckout: playerStats[player._id.toString()].highestCheckout,
         },
       })),
+      // Ensure standing is included if it exists
+      standing: tournament.standing || [],
     };
 
     const boards = await BoardModel.find({ tournamentId: tournament._id })
