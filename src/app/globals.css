@@ -70,3 +70,205 @@
   --depth: 0;
   --noise: 1;
 }
+/* Neonbird téma fallback stílusok */
+[data-theme="neonbird"] .bg-base-100 {
+  background-color: #1E2335;
+}
+[data-theme="neonbird"] .bg-base-200 {
+  background-color: #30374F;
+}
+[data-theme="neonbird"] .bg-base-300 {
+  background-color: #40465D;
+}
+[data-theme="neonbird"] .text-base-content {
+  color: #F1F2F5;
+}
+[data-theme="neonbird"] .bg-primary {
+  background-color: #BF2A2A;
+}
+[data-theme="neonbird"] .text-primary {
+  color: #BF2A2A;
+}
+[data-theme="neonbird"] .text-primary-content {
+  color: #F7F8FA;
+}
+[data-theme="neonbird"] .bg-secondary {
+  background-color: #C3E88D;
+}
+[data-theme="neonbird"] .text-secondary {
+  color: #C3E88D;
+}
+[data-theme="neonbird"] .text-secondary-content {
+  color: #F6F9E9;
+}
+[data-theme="neonbird"] .bg-accent {
+  background-color: #B3B3B3;
+}
+[data-theme="neonbird"] .text-accent {
+  color: #B3B3B3;
+}
+[data-theme="neonbird"] .bg-neutral {
+  background-color: #1E2335;
+}
+[data-theme="neonbird"] .text-neutral {
+  color: #1E2335;
+}
+[data-theme="neonbird"] .bg-info {
+  background-color: #5DB0D9;
+}
+[data-theme="neonbird"] .text-info {
+  color: #5DB0D9;
+}
+[data-theme="neonbird"] .bg-success {
+  background-color: #2D9F5D;
+}
+[data-theme="neonbird"] .text-success {
+  color: #2D9F5D;
+}
+[data-theme="neonbird"] .bg-warning {
+  background-color: #C4A148;
+}
+[data-theme="neonbird"] .text-warning {
+  color: #C4A148;
+}
+[data-theme="neonbird"] .bg-error {
+  background-color: #571B1B;
+}
+[data-theme="neonbird"] .text-error {
+  color: #571B1B;
+}
+[data-theme="neonbird"] .btn-primary {
+  background-color: #BF2A2A;
+  color: #F7F8FA;
+  border-color: #BF2A2A;
+}
+[data-theme="neonbird"] .btn-primary:hover {
+  background-color: #A12323;
+  border-color: #A12323;
+}
+[data-theme="neonbird"] .btn-secondary {
+  background-color: #C3E88D;
+  color: #1E2335;
+  border-color: #C3E88D;
+}
+[data-theme="neonbird"] .btn-secondary:hover {
+  background-color: #B3D87D;
+  border-color: #B3D87D;
+}
+[data-theme="neonbird"] .loading-spinner {
+  border: 4px solid #BF2A2A;
+  border-top-color: transparent;
+}
+
+/* Emerald téma fallback stílusok */
+[data-theme="emerald"] .bg-base-100 {
+  background-color: #F7F7F7;
+}
+[data-theme="emerald"] .bg-base-200 {
+  background-color: #EFF0F3;
+}
+[data-theme="emerald"] .bg-base-300 {
+  background-color: #E0E2E9;
+}
+[data-theme="emerald"] .text-base-content {
+  color: #2F343E;
+}
+[data-theme="emerald"] .bg-primary {
+  background-color: #BF2A2A;
+}
+[data-theme="emerald"] .text-primary {
+  color: #BF2A2A;
+}
+[data-theme="emerald"] .text-primary-content {
+  color: #F7F8FA;
+}
+[data-theme="emerald"] .bg-secondary {
+  background-color: #29A374;
+}
+[data-theme="emerald"] .text-secondary {
+  color: #29A374;
+}
+[data-theme="emerald"] .text-secondary-content {
+  color: #FFFFFF;
+}
+[data-theme="emerald"] .bg-accent {
+  background-color: #A8E7D5;
+}
+[data-theme="emerald"] .text-accent {
+  color: #A8E7D5;
+}
+[data-theme="emerald"] .bg-neutral {
+  background-color: #2F343E;
+}
+[data-theme="emerald"] .text-neutral {
+  color: #2F343E;
+}
+[data-theme="emerald"] .bg-info {
+  background-color: #2795C9;
+}
+[data-theme="emerald"] .text-info {
+  color: #2795C9;
+}
+[data-theme="emerald"] .bg-success {
+  background-color: #1C9E67;
+}
+[data-theme="emerald"] .text-success {
+  color: #1C9E67;
+}
+[data-theme="emerald"] .bg-warning {
+  background-color: #D4932B;
+}
+[data-theme="emerald"] .text-warning {
+  color: #D4932B;
+}
+[data-theme="emerald"] .bg-error {
+  background-color: #B81F1F;
+}
+[data-theme="emerald"] .text-error {
+  color: #B81F1F;
+}
+[data-theme="emerald"] .btn-primary {
+  background-color: #BF2A2A;
+  color: #F7F8FA;
+  border-color: #BF2A2A;
+}
+[data-theme="emerald"] .btn-primary:hover {
+  background-color: #A12323;
+  border-color: #A12323;
+}
+[data-theme="emerald"] .btn-secondary {
+  background-color: #29A374;
+  color: #FFFFFF;
+  border-color: #29A374;
+}
+[data-theme="emerald"] .btn-secondary:hover {
+  background-color: #238F63;
+  border-color: #238F63;
+}
+[data-theme="emerald"] .loading-spinner {
+  border: 4px solid #BF2A2A;
+  border-top-color: transparent;
+}
+
+/* Általános fallback stílusok */
+.btn {
+  padding: 0.5rem 1rem;
+  border: 1px solid transparent;
+  border-radius: 0.25rem;
+  cursor: pointer;
+}
+.card {
+  background-color: #FFFFFF;
+  border-radius: 0.5rem;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  padding: 1rem;
+}
+.input {
+  padding: 0.5rem;
+  border: 1px solid #D1D5DB;
+  border-radius: 0.25rem;
+}
+.label-text {
+  font-size: 0.875rem;
+  color: #4B5563;
+}

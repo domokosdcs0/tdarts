@@ -5,10 +5,10 @@ import mongoose from "mongoose";
 import { PopulatedTournament } from "@/types/tournamentSchema";
 import { PopulatedMatch } from "@/types/tournamentSchema";
 
-export async function POST(req: NextRequest, { params }: { params: { code: string } }) {
+export async function POST(req: NextRequest,{ params }: { params: Promise<{ code: string }> }) {
   try {
     await connectMongo();
-    const { code } = params;
+    const { code } = await params;
     const { TournamentModel, PlayerModel, PlayerTournamentHistoryModel, MatchModel } = getModels();
 
     // Find tournament with populated fields
@@ -96,7 +96,6 @@ export async function POST(req: NextRequest, { params }: { params: { code: strin
 
     // Step 2: Process knockout rounds
     const knockoutRounds = tournament.knockout.rounds;
-    let currentRank = nearestPowerOf2; // Start at 16 for 8 advancing players
 
     for (let roundIndex = 0; roundIndex < knockoutRounds.length; roundIndex++) {
       const matches = knockoutRounds[roundIndex].matches;

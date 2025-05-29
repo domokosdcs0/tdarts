@@ -31,6 +31,7 @@ export default function ClubsPage() {
         toast.success('Klubok betöltve!', { id: toastId });
       } catch (err) {
         toast.error('Klubok betöltése sikertelen', { id: toastId });
+        console.error('Hiba a klubok betöltésekor:', err);
       }
     };
     fetchClubs();

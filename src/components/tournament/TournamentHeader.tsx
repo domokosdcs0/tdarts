@@ -19,7 +19,6 @@ function TournamentHeader({
   autoFetch,
   setAutoFetch,
   isModerator,
-  setIsModerator,
   handleModeratorAuth,
 }: TournamentHeaderProps) {
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);

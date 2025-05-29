@@ -1,9 +1,9 @@
-// api/boards/[boardId]/status/route.ts
 import { connectMongo } from "@/lib/mongoose";
 import { getModels } from "@/lib/models";
 import { NextResponse } from "next/server";
-
-export async function POST(request: Request, { params }: { params: { boardId: string } }) {
+import { NextRequest } from "next/server";
+export async function POST(request: NextRequest, { params }: { params: Promise<{ boardId: string }> }) {
+  
   try {
     await connectMongo();
     const { BoardModel } = getModels();

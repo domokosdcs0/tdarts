@@ -3,7 +3,7 @@ import { connectMongo } from "@/lib/mongoose";
 import { getModels } from "@/lib/models";
 import { Club } from "@/types/clubSchema";
 
-export async function POST(req: NextRequest,  { params }: { params: { id: string } }) {
+export async function POST(req: NextRequest,  { params }: { params: Promise<{ id: string }> }) {
     await connectMongo();
     const { id } = await params;
     const {password} = await req.json();

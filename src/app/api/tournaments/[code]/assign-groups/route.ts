@@ -2,7 +2,6 @@ import { connectMongo } from "@/lib/mongoose";
 import { getModels } from "@/lib/models";
 import { NextResponse } from "next/server";
 import { v4 as uuidv4 } from "uuid";
-import { Board } from "@/types/boardSchema";
 
 function generateMatches(playerCount: number): { player1Idx: number; player2Idx: number; scorerIdx: number }[] {
   // Generate all possible pairs
@@ -154,39 +153,35 @@ export async function POST(request: Request, { params }: { params: Promise<{ cod
       [players[i], players[j]] = [players[j], players[i]];
     }
 
-    // Generate new boards
     const boards = [];
     for (let i = 1; i <= boardCount; i++) {
       boards.push({
         tournamentId: tournament._id,
         boardId: uuidv4(),
-        boardNumber: i,
+        boardNumber: i.toString(),
         status: "idle",
         waitingPlayers: [],
       });
     }
     await BoardModel.insertMany(boards);
-
+    
     const groups = [];
-    const savedBoards = await BoardModel.find({ tournamentId: tournament._id }).lean<Board[]>();
-
     for (let groupIndex = 0; groupIndex < boardCount; groupIndex++) {
       const groupPlayers = players.slice(groupIndex * playersPerGroup, (groupIndex + 1) * playersPerGroup);
       if (groupPlayers.length < 2) {
-        console.warn(`Csoport ${groupIndex} túl kevés játékossal (${groupPlayers.length}), kihagyva.`);
-        continue; // Skip groups with fewer than 3 players
+        console.warn(`Csoport ${groupIndex + 1} túl kevés játékossal (${groupPlayers.length}), kihagyva.`);
+        continue;
       }
-
+    
       const numberedPlayers = groupPlayers.map((playerId, index) => ({
         playerId,
         number: index + 1,
       }));
-
-      const boardId = savedBoards[groupIndex]?.boardId;
+    
+      const boardId = boards[groupIndex].boardId;
       if (!boardId) {
-        throw new Error(`Nincs tábla a ${groupIndex} csoport számára`);
+        throw new Error(`Nincs tábla a ${groupIndex + 1}. csoport számára`);
       }
-
       console.log(`Generating matches for group ${groupIndex}, boardId: ${boardId}, players: ${groupPlayers.length}`);
 
       const orderedMatches = generateMatches(numberedPlayers.length);

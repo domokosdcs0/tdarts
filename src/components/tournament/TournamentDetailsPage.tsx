@@ -8,6 +8,7 @@ import PlayerManagement from "@/components/tournament/PlayerManagement";
 import GroupSection from "@/components/tournament/GroupSection";
 import BoardSection from "@/components/tournament/BoardSection";
 import BracketSection from "@/components/tournament/BracketSection";
+import MatchResultEditor from "./MatchResultEditor";
 
 export interface Player {
   _id: string;
@@ -33,6 +34,7 @@ export interface GroupPlayer {
 }
 
 export interface Group {
+  _id: string
   players: {
     playerId: { _id: string; name: string };
     number: number;
@@ -63,6 +65,7 @@ export interface Match {
       player1: { legsWon: number; average: number; checkoutRate: number; dartsThrown: number };
       player2: { legsWon: number; average: number; checkoutRate: number; dartsThrown: number };
     };
+    round: number
   } | null;
 }
 
@@ -372,29 +375,36 @@ export default function TournamentDetailsPage() {
           <div className="card bg-base-100 shadow-xl">
             <div className="card-body pt-0">
               {isModerator && (
-                <div className="mt-4 flex flex-wrap gap-2">
-                  <button
-                    className="btn btn-primary"
-                    onClick={regenerateGroups}
-                    disabled={loading || tournament.status === "finished" || tournament.status === "knockout"}
-                  >
-                    Csoportok újragenerálása
-                  </button>
-                  <button
-                    className="btn btn-warning"
-                    onClick={() => updateStatus("knockout")}
-                    disabled={loading || tournament.status === "finished" || tournament.status === "knockout"}
-                  >
-                    Kieséses szakasz indítása
-                  </button>
-                  <button
-                    className="btn btn-error"
-                    onClick={handleFinish}
-                    disabled={loading || !["group", "knockout"].includes(tournament.status)}
-                  >
-                    Torna befejezése
-                  </button>
-                </div>
+                <>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <button
+                      className="btn btn-primary"
+                      onClick={regenerateGroups}
+                      disabled={loading || tournament.status === "finished" || tournament.status === "knockout"}
+                    >
+                      Csoportok újragenerálása
+                    </button>
+                    <button
+                      className="btn btn-warning"
+                      onClick={() => updateStatus("knockout")}
+                      disabled={loading || tournament.status === "finished" || tournament.status === "knockout"}
+                    >
+                      Kieséses szakasz indítása
+                    </button>
+                    <button
+                      className="btn btn-error"
+                      onClick={handleFinish}
+                      disabled={loading || !["group", "knockout"].includes(tournament.status)}
+                    >
+                      Torna befejezése
+                    </button>
+                  </div>
+                  <MatchResultEditor
+                    tournamentId={tournament._id}
+                    isModerator={isModerator}
+                    loading={loading}
+                  />
+                </>
               )}
               <TournamentHeader
                 tournament={tournament}

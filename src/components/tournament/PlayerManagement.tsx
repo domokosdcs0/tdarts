@@ -35,7 +35,6 @@ function PlayerManagement({
   setIsSidebarOpen,
   setSortBy,
   addPlayer,
-  removePlayer,
   loading,
   code,
   autoFetch,
@@ -98,7 +97,10 @@ function PlayerManagement({
             onClick={() => setIsSidebarOpen(false)}
           ></div>
         )}
-        <h2 className="text-xl font-bold mb-4">Játékosok</h2>
+        <div className="flex justify-between items-center mb-3">
+          <h2 className="text-xl font-bold ">Játékosok</h2>
+          <span className="italic ">Torna kód: {code}</span>
+        </div>
         <div className="flex gap-2 mb-4 items-center justify-between flex-wrap">
           <div className="flex gap-2">
             <button
@@ -206,15 +208,6 @@ function PlayerManagement({
                   )}
                 </div>
               </div>
-              {isModerator && (
-                <button
-                  className="btn btn-error btn-sm"
-                  onClick={() => removePlayer(player._id)}
-                  disabled={loading}
-                >
-                  Törlés
-                </button>
-              )}
             </li>
           ))}
         </ul>

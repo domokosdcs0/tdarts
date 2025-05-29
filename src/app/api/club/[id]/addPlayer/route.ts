@@ -2,7 +2,8 @@ import { NextResponse, NextRequest } from "next/server";
 import { connectMongo } from "@/lib/mongoose";
 import { getModels } from "@/lib/models";
 
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }
+) {
   const { id } = await params;
   await connectMongo();
   const { ClubModel, PlayerModel } = getModels();

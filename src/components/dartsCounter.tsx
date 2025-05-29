@@ -203,11 +203,11 @@ export default function DartsCounter({
     const currentState = currentPlayer === "player1" ? player1State : player2State;
     const setCurrentState = currentPlayer === "player1" ? setPlayer1State : setPlayer2State;
   
-    let newScore = currentState.score - score;
-    let newThrows = [...currentState.throws, { score, isDouble: isDoubleAttempt && doubleHit, darts: 3 }];
+    const newScore = currentState.score - score;
+    const newThrows = [...currentState.throws, { score, isDouble: isDoubleAttempt && doubleHit, darts: 3 }];
     let checkoutAttempts = currentState.checkoutAttempts;
     let successfulCheckouts = currentState.successfulCheckouts;
-    let oneEighties = [...currentState.oneEighties];
+    const oneEighties = [...currentState.oneEighties];
     let highestCheckout = currentState.highestCheckout;
     const newTotalPointsThrown = currentState.totalPointsThrown + score;
   
@@ -435,7 +435,6 @@ export default function DartsCounter({
     setLoading(true);
     try {
       if (confirm) {
-        const currentState = currentPlayer === "player1" ? player1State : player2State;
         const winnerId = currentPlayer === "player1" ? match.player1Id : match.player2Id;
         const highestCheckout = legs.reduce(
           (max, leg) => ({
@@ -580,149 +579,7 @@ export default function DartsCounter({
     return null;
   };
 
-  const simulateBO3Match = async () => {
-    if (matchFinished) return;
 
-    setLoading(true);
-    try {
-      setPlayer1State({
-        score: 501,
-        totalDartsThrown: 0,
-        currentLegDartsThrown: 0,
-        totalPointsThrown: 0,
-        throws: [],
-        checkoutAttempts: 0,
-        successfulCheckouts: 0,
-        legsWon: 0,
-        oneEighties: [],
-        highestCheckout: 0,
-      });
-      setPlayer2State({
-        score: 501,
-        totalDartsThrown: 0,
-        currentLegDartsThrown: 0,
-        totalPointsThrown: 0,
-        throws: [],
-        checkoutAttempts: 0,
-        successfulCheckouts: 0,
-        legsWon: 0,
-        oneEighties: [],
-        highestCheckout: 0,
-      });
-      setLegs([]);
-      setThrowHistory([]);
-      setCurrentPlayer("player1");
-      setLegStartingPlayer("player1");
-      setShowSetup(false);
-
-      const simulatedLegs: Leg[] = [];
-
-      // Leg 1: Player 1 wins with a 100 checkout
-      const leg1: Leg = {
-        player1Throws: [
-          { score: 100, darts: 3 },
-          { score: 100, darts: 3 },
-          { score: 100, darts: 3 },
-          { score: 100, darts: 3 },
-          { score: 100, darts: 3 },
-          { score: 1, darts: 3 },
-        ],
-        player2Throws: [
-          { score: 100, darts: 3 },
-          { score: 100, darts: 3 },
-          { score: 100, darts: 3 },
-          { score: 100, darts: 3 },
-          { score: 100, darts: 3 },
-        ],
-        winnerId: new mongoose.Types.ObjectId(match.player1Id),
-        checkoutDarts: 2,
-        doubleAttempts: 1,
-        highestCheckout: {
-          score: 100,
-          darts: 2,
-          playerId: new mongoose.Types.ObjectId(match.player1Id),
-        },
-        oneEighties: { player1: [], player2: [] },
-        createdAt: new Date(),
-      };
-      simulatedLegs.push(leg1);
-
-      // Leg 2: Player 1 wins with a 170 checkout
-      const leg2: Leg = {
-        player1Throws: [
-          { score: 180, darts: 3 },
-          { score: 100, darts: 3 },
-          { score: 51, darts: 3 },
-          { score: 170, darts: 3 },
-        ],
-        player2Throws: [
-          { score: 100, darts: 3 },
-          { score: 100, darts: 3 },
-          { score: 100, darts: 3 },
-          { score: 100, darts: 3 },
-        ],
-        winnerId: new mongoose.Types.ObjectId(match.player1Id),
-        checkoutDarts: 3,
-        doubleAttempts: 1,
-        highestCheckout: {
-          score: 170,
-          darts: 3,
-          playerId: new mongoose.Types.ObjectId(match.player1Id),
-        },
-        oneEighties: { player1: [1], player2: [] },
-        createdAt: new Date(),
-      };
-      simulatedLegs.push(leg2);
-
-      setLegs(simulatedLegs);
-
-      setPlayer1State({
-        score: 0,
-        totalDartsThrown: 27,
-        currentLegDartsThrown: 12,
-        totalPointsThrown: 901,
-        throws: leg2.player1Throws,
-        checkoutAttempts: 2,
-        successfulCheckouts: 2,
-        legsWon: 2,
-        oneEighties: [1],
-        highestCheckout: 170,
-      });
-      setPlayer2State({
-        score: 101,
-        totalDartsThrown: 24,
-        currentLegDartsThrown: 12,
-        totalPointsThrown: 800,
-        throws: leg2.player2Throws,
-        checkoutAttempts: 0,
-        successfulCheckouts: 0,
-        legsWon: 0,
-        oneEighties: [],
-        highestCheckout: 0,
-      });
-
-      await updateMatchStats({
-        player1: {
-          dartsThrown: 27,
-          average: calculateAverage(901, 27),
-          legsWon: 2,
-        },
-        player2: {
-          dartsThrown: 24,
-          average: calculateAverage(800, 24),
-          legsWon: 0,
-        },
-        legs: simulatedLegs,
-      });
-
-      setShowFinishConfirmation(true);
-      toast.success("BO3 mérkőzés szimulálva: Player 1 nyert 2-0, 170-es kiszállóval!");
-    } catch (error: any) {
-      toast.error(error.message || "Nem sikerült a szimuláció");
-    } finally {
-      setLoading(false);
-    }
-  };
 
   return (
     <div className="w-screen h-[90vh] bg-base-200 flex flex-col items-center justify-center p-6">
@@ -740,17 +597,10 @@ export default function DartsCounter({
             onStartingPlayerChange={setStartingPlayer}
             onStart={() => setShowSetup(false)}
           />
-          <button
-            className="btn btn-primary mt-4"
-            onClick={simulateBO3Match}
-            disabled={loading}
-          >
-            {loading ? <span className="loading loading-spinner"></span> : "BO3 Mérkőzés Szimulálása"}
-          </button>
         </>
       ) : (
-        <>
-          <div className="flex flex-col mt-26 md:flex-row gap-6 w-full max-w-6xl">
+        <div className="flex flex-col md:flex-row items-center gap-3 w-full">
+          <div className="flex md:flex-col mt-[5rem] gap-6 w-full max-w-6xl">
             <PlayerCard
               playerName={match.player1Name}
               score={player1State.score}
@@ -809,7 +659,7 @@ export default function DartsCounter({
               onConfirm={handleFinishConfirmation}
             />
           )}
-        </>
+        </div>
       )}
     </div>
   );

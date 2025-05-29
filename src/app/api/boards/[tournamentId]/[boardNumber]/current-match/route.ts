@@ -6,7 +6,7 @@ import { Tournament } from "@/types/tournamentSchema";
 
 export async function GET(
   request: Request,
-  { params }: { params: { tournamentId: string; boardNumber: string } }
+  { params }: { params: Promise<{ tournamentId: string, boardNumber: string }> }
 ) {
   try {
     await connectMongo();
@@ -26,7 +26,7 @@ export async function GET(
     // Keresünk egy folyamatban lévő mérkőzést az adott csoportban
     const match = await MatchModel.findOne({
       tournamentId,
-      groupIndex,
+      round: groupIndex,
       status: "ongoing",
     })
       .populate("player1", "name", PlayerModel)

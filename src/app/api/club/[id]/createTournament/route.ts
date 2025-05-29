@@ -3,10 +3,10 @@ import { connectMongo } from "@/lib/mongoose";
 import { getModels } from "@/lib/models";
 import { v4 as uuidv4 } from "uuid";
 
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     await connectMongo();
-    const { id } = params;
+    const { id } = await params;
     const { ClubModel, TournamentModel, PlayerModel, PlayerTournamentHistoryModel } = getModels();
     const body = await req.json();
 

@@ -26,7 +26,7 @@ interface Tournament {
   createdAt: Date;
 }
 
-export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   await connectMongo();
   const { id } = await params;
   const { ClubModel, PlayerModel, TournamentModel } = getModels();

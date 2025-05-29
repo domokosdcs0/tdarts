@@ -92,6 +92,7 @@ export default function ClubDetailPage() {
         toast.success('Klub adatok betöltve!', { id: toastId });
       } catch (err) {
         toast.error('Klub betöltése sikertelen', { id: toastId });
+        console.error(err)
         router.push('/clubs');
       }
     };

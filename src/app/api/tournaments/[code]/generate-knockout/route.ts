@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { connectMongo } from "@/lib/mongoose";
 import { getModels } from "@/lib/models";
 import mongoose from "mongoose";
-import { Match } from "@/types/matchSchema";
 
 // Local Tournament interface for non-populated data
 interface Tournament {
@@ -171,7 +170,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ cod
     }
 
     // Group standings by group and sort by rank
-    const groupStandings = tournament.groups.map((group, index) => ({
+    const groupStandings = tournament.groups.map((group) => ({
       groupId: group._id,
       standings: qualifyingStandings
         .filter((s) => s.groupId === group._id)
@@ -234,7 +233,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ cod
     }
 
     // Save matches
-    const savedMatches = await MatchModel.insertMany(matches);
+    await MatchModel.insertMany(matches);
 
     // Initialize knockout rounds
     const roundsCount = Math.log2(qualifyingPlayersCount);

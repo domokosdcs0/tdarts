@@ -31,6 +31,7 @@ export default function BoardPage() {
   const [player2Ready, setPlayer2Ready] = useState(false);
   const [secondsRemaining, setSecondsRemaining] = useState(300); // 5 minutes
   const [timerExpired, setTimerExpired] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   const validateForm = useForm<ValidateForm>({
     resolver: zodResolver(validateSchema),
@@ -174,6 +175,7 @@ export default function BoardPage() {
       setBoardId(boardData.boardId);
       setSelectedBoard(data.boardNumber);
       localStorage.setItem("boardNumber", data.boardNumber);
+      localStorage.setItem("boardId", boardData.boardId);
 
       const statusRes = await fetch(`/api/board/${boardData.boardId}/status`, {
         method: "POST",
@@ -322,12 +324,40 @@ export default function BoardPage() {
   };
 
   // Fullscreen kérés
-  const requestFullscreen = () => {
-    const element = document.documentElement;
-    if (element.requestFullscreen) {
-      element.requestFullscreen();
+  // Toggle fullscreen mode
+  const toggleFullscreen = () => {
+    if (document.fullscreenElement) {
+      // Exit fullscreen
+      document.exitFullscreen().then(() => {
+        setIsFullscreen(false);
+      }).catch((err) => {
+        console.error("Error exiting fullscreen:", err);
+      });
+    } else {
+      // Enter fullscreen
+      const element = document.documentElement;
+      if (element.requestFullscreen) {
+        element.requestFullscreen().then(() => {
+          setIsFullscreen(true);
+        }).catch((err) => {
+          console.error("Error entering fullscreen:", err);
+        });
+      }
     }
   };
+
+  // Update fullscreen state when it changes
+  const handleFullscreenChange = () => {
+    setIsFullscreen(!!document.fullscreenElement);
+  };
+
+  // Add event listener for fullscreen changes
+  useEffect(() => {
+    document.addEventListener("fullscreenchange", handleFullscreenChange);
+    return () => {
+      document.removeEventListener("fullscreenchange", handleFullscreenChange);
+    };
+  }, []);
 
   // Automatikus bejelentkezés és állapot visszaállítás
   useEffect(() => {
@@ -337,15 +367,11 @@ export default function BoardPage() {
     const storedPassword = localStorage.getItem("tournamentPassword");
     const storedMatchId = localStorage.getItem("matchId");
     const storedIsReady = localStorage.getItem("isReady") === "true";
+    const storedBoardId = localStorage.getItem("boardId");
 
-    console.log("Stored data:", {
-      storedTournamentId,
-      storedBoardNumber,
-      storedCode,
-      storedPassword,
-      storedMatchId,
-      storedIsReady,
-    });
+   if (storedBoardId) {
+      setBoardId(storedBoardId);
+    }
 
     const restoreMatch = async (matchId: string) => {
       try {
@@ -396,13 +422,12 @@ export default function BoardPage() {
     }
   }, [tournamentId]);
 
-  console.log(nextMatch)
 
   return (
     <main className="min-h-screen w-full bg-base-200 flex items-center justify-center relative">
       {/* Exit Button */}
       {(!isReady || nextMatch?.noMatch) && (
-        <div className="fixed top-4 right-4 z-40 flex gap-3">
+        <div className="fixed bottom-4 right-4 z-40 flex gap-3">
           <button
             className="ó btn btn-error btn-lg z-50"
             onClick={handleExit}
@@ -411,11 +436,18 @@ export default function BoardPage() {
             {loading ? <span className="loading loading-spinner"></span> : "Kilépés a tábláról"}
           </button>
           <button
-            onClick={() => {requestFullscreen()}}
-            className=" btn btn-info btn-lg z-50"
-          >
-            {loading ? <span className="loading loading-spinner"></span> : "Teljes képernyő"}
-          </button>
+          onClick={toggleFullscreen}
+          className="btn btn-info btn-lg z-50"
+          disabled={loading}
+        >
+          {loading ? (
+            <span className="loading loading-spinner"></span>
+          ) : isFullscreen ? (
+            "Kilépés a teljes képernyőből"
+          ) : (
+            "Teljes képernyő"
+          )}
+    </button>
           <button 
             onClick={() => checkOngoingMatch(selectedBoard!)}
             className="btn btn-warning btn-lg z-50"

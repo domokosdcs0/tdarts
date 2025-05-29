@@ -8,7 +8,7 @@ import { Board } from "@/types/boardSchema";
 
 export async function GET(
   request: Request,
-  { params }: { params: { tournamentId: string; boardNumber: string } }
+  { params }: { params: Promise<{ tournamentId: string, boardNumber: string }> }
 ) {
   try {
     await connectMongo();

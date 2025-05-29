@@ -2,7 +2,7 @@ import { connectMongo } from "@/lib/mongoose";
 import { getModels } from "@/lib/models";
 import { NextResponse } from "next/server";
 
-export async function PATCH(request: Request, { params }: { params: { code: string } }) {
+export async function PATCH(request: Request, { params }: { params: Promise<{ code: string }> }) {
   try {
     await connectMongo();
     const { TournamentModel } = getModels();

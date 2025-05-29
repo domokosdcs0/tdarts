@@ -5,7 +5,7 @@ interface MongooseCache {
   promise: Promise<typeof mongoose> | null;
 }
 
-let cached: MongooseCache = (global as any).mongoose || { conn: null, promise: null };
+const cached: MongooseCache = (global as any).mongoose || { conn: null, promise: null };
 
 if (!(global as any).mongoose) {
   (global as any).mongoose = cached;

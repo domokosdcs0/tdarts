@@ -5,36 +5,6 @@ import mongoose from "mongoose";
 import { Match } from "@/types/matchSchema";
 import { Tournament } from "@/types/tournamentSchema";
 
-interface PopulatedMatch {
-  _id: string;
-  tournamentId: string;
-  round?: number;
-  isKnockout: boolean;
-  status: string;
-  player1: { _id: string; name: string };
-  player2: { _id: string; name: string };
-  scorer?: { _id: string; name: string };
-  stats: {
-    player1: { legsWon: number; dartsThrown: number; average: number };
-    player2: { legsWon: number; dartsThrown: number; average: number };
-  };
-  highestCheckout: { player1: number; player2: number };
-  oneEighties: {
-    player1: { count: number; darts: number[] };
-    player2: { count: number; darts: number[] };
-  };
-  legs?: {
-    player1Throws: { score: number; darts: number }[];
-    player2Throws: { score: number; darts: number }[];
-    winnerId: string;
-    checkoutDarts?: number;
-    doubleAttempts?: number;
-    highestCheckout?: { score: number; darts: number; playerId: string };
-    oneEighties?: { player1: number[]; player2: number[] };
-  }[];
-  winner?: string;
-}
-
 export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ tournamentId: string; matchId: string }> }

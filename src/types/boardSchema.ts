@@ -4,6 +4,7 @@ export const BoardSchema = new mongoose.Schema({
   tournamentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Tournament', required: true },
   boardId: { type: String, required: true },
   currentMatch: { type: mongoose.Schema.Types.ObjectId, ref: 'Match' },
+  boardNumber: { type: Number },
   status: { type: String, enum: ['idle', 'waiting', 'playing'], default: 'idle' },
   waitingPlayers: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Player' }],
   updatedAt: { type: Date, default: Date.now },
@@ -20,6 +21,7 @@ BoardSchema.pre('save', function (next) {
 
 export interface Board {
   tournamentId: mongoose.Types.ObjectId;
+  boardNumber?: number;
   boardId: string;
   currentMatch?: mongoose.Types.ObjectId;
   status: 'idle' | 'waiting' | 'playing';

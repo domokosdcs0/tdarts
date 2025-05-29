@@ -3,7 +3,7 @@ import { getModels } from "@/lib/models";
 import { NextResponse } from "next/server";
 import { Tournament } from "@/types/tournamentSchema";
 
-export async function POST(request: Request, { params }: { params: { code: string } }) {
+export async function POST(request: Request, { params }: { params: Promise<{ code: string }> }) {
   try {
     await connectMongo();
     const { TournamentModel } = getModels();

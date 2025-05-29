@@ -4,12 +4,12 @@ import Link from "next/link";
 
 export default function LandingPage() {
   return (
-    <div className="min-h-screen bg-base-200">
+    <div className="min-h-screen w-full bg-base-200">
       {/* Hero Szekció */}
       <section className="bg-primary/90 backdrop-blur-md text-primary-content py-20">
         <div className="container mx-auto px-4 text-center">
           <h1 className="text-4xl md:text-5xl font-bold mb-4">
-            Üdvözöl a TornaKezelő!
+            Üdvözöl a tDarts!
           </h1>
           <p className="text-lg md:text-xl mb-8 max-w-2xl mx-auto">
             Kezeld klubjaidat, indíts versenyeket, kövesd a statisztikákat és irányítsd a tornákat élőben, teljesen automatizáltan!
@@ -26,7 +26,7 @@ export default function LandingPage() {
       <section className="py-16 bg-base-100">
         <div className="container mx-auto px-4">
           <h2 className="text-3xl font-semibold text-center mb-12 text-base-content">
-            Miért válaszd a TornaKezelőt?
+            Miért válaszd a tDarts torna kezelőt?
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {/* Klubkezelés */}

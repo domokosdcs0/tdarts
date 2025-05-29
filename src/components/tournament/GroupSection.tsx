@@ -165,11 +165,11 @@ function GroupSection({ groups, getEliminatedPlayers, matchFilter, setMatchFilte
                                 return {
                                   player,
                                   standing,
-                                  rank: standing?.rank || Infinity,
+                                  rank: standing?.rank || 1,
                                 };
                               })
                               .sort((a, b) => a.rank - b.rank)
-                              .map(({ player, standing }, index) => {
+                              .map(({ player, standing }) => {
                                 const isEliminated = eliminatedPlayers.includes(player.playerId._id.toString());
                                 return (
                                   <tr
@@ -196,7 +196,7 @@ function GroupSection({ groups, getEliminatedPlayers, matchFilter, setMatchFilte
                         className="btn shadow-md btn-sm w-full flex justify-between items-center"
                         onClick={() => toggleMatches(group._id)}
                       >
-                        <span>Mérkőzések</span>
+                        <span>Mérfürdőesek</span>
                         <svg
                           className={`w-4 h-4 transition-transform ${isMatchesExpanded ? "rotate-180" : ""}`}
                           fill="none"
@@ -218,12 +218,12 @@ function GroupSection({ groups, getEliminatedPlayers, matchFilter, setMatchFilte
                           >
                             <div className="mb-4 flex flex-col items-start gap-2">
                               <label className="label">
-                                <span className="label-text">Szűrés állapot szerint:</span>
+                                <span className="label-text">Szűrűs állapot szerint:</span>
                               </label>
                               <select
                                 className="select select-sm select-bordered"
                                 value={matchFilter}
-                                onChange={(e) => setMatchFilter(e.target.value as any)}
+                                onChange={(e) => setMatchFilter(e.target.value as "all" | "pending" | "ongoing" | "finished")}
                               >
                                 <option value="all">Összes</option>
                                 <option value="pending">Függőben</option>
@@ -246,38 +246,41 @@ function GroupSection({ groups, getEliminatedPlayers, matchFilter, setMatchFilte
                                   <tbody>
                                     {group.matches
                                       .filter((match) =>
-                                        matchFilter === "all" ? true : match.status === matchFilter
+                                        matchFilter === "all" ? true : match.matchReference?.status === matchFilter
                                       )
                                       .map((match, matchIndex) => (
                                         <tr key={match._id || matchIndex}>
                                           <td>{matchIndex + 1}</td>
                                           <td>
-                                            {(match.player1?.name || "Ismeretlen")} vs{" "}
-                                            {(match.player2?.name || "Ismeretlen")}
+                                            {match.matchReference?.player1?.name || "Ismeretlen"} vs{" "}
+                                            {match.matchReference?.player2?.name || "Ismeretlen"}
                                           </td>
-                                          <td>{match.scorer?.name || "Nincs"}</td>
+                                          <td>{match.matchReference?.scorer?.name || "Nincs"}</td>
                                           <td>
                                             <span
                                               className={`badge ${
-                                                match.status === "pending"
+                                                match.matchReference?.status === "pending"
                                                   ? "badge-warning"
-                                                  : match.status === "ongoing"
+                                                  : match.matchReference?.status === "ongoing"
                                                   ? "badge-info"
                                                   : "badge-success"
                                               }`}
                                             >
-                                              {match.status === "pending"
+                                              {match.matchReference?.status === "pending"
                                                 ? "Függőben"
-                                                : match.status === "ongoing"
+                                                : match.matchReference?.status === "ongoing"
                                                 ? "Folyamatban"
-                                                : "Befejezve"}
+                                                : match.matchReference?.status === "finished"
+                                                ? "Befejezve"
+                                                : "-"}
                                             </span>
                                           </td>
                                           <td>
-                                            {(match.status === "finished" || match.status === "ongoing") &&
-                                            match.stats ? (
+                                            {(match.matchReference?.status === "finished" || match.matchReference?.status === "ongoing") &&
+                                            match.matchReference?.stats ? (
                                               <span className="badge badge-neutral">
-                                                {match.stats.player1.legsWon}-{match.stats.player2.legsWon}
+                                                {match.matchReference.stats.player1.legsWon}-
+                                                {match.matchReference.stats.player2.legsWon}
                                               </span>
                                             ) : (
                                               "-"
@@ -365,11 +368,11 @@ function GroupSection({ groups, getEliminatedPlayers, matchFilter, setMatchFilte
                                     return {
                                       player,
                                       standing,
-                                      rank: standing?.rank || Infinity,
+                                      rank: standing?.rank || 1,
                                     };
                                   })
                                   .sort((a, b) => a.rank - b.rank)
-                                  .map(({ player, standing }, index) => {
+                                  .map(({ player, standing }) => {
                                     const isEliminated = eliminatedPlayers.includes(player.playerId._id.toString());
                                     return (
                                       <tr

@@ -1,4 +1,3 @@
-import { checkoutTable } from "@/lib/checkouts";
 interface PlayerCardProps {
     playerName: string;
     score: number;
@@ -22,18 +21,7 @@ interface PlayerCardProps {
     average,
     checkoutSuggestion,
     isCurrentPlayer,
-    inputScore,
-    isDoubleAttempt,
-    doubleHit,
-    onDoubleAttemptChange,
-    onDoubleHitChange,
   }: PlayerCardProps) {
-    const canShowDouble =
-      score - (parseInt(inputScore) || 0) <= 170 &&
-      score - (parseInt(inputScore) || 0) > 0 &&
-      (score - (parseInt(inputScore) || 0) <= 50 ||
-        checkoutTable[score - (parseInt(inputScore) || 0)]?.includes("D"));
-  
     return (
       <div
         className={`flex-1 p-6 rounded-lg shadow-lg ${
@@ -48,31 +36,6 @@ interface PlayerCardProps {
         {checkoutSuggestion && (
           <div className="bg-green-100 p-4 rounded-md mb-4">
             <p className="text-lg font-medium text-green-800">Checkout: {checkoutSuggestion}</p>
-          </div>
-        )}
-        {canShowDouble && (
-          <div className="space-y-2">
-            <label className="flex items-center gap-3">
-              <input
-                type="checkbox"
-                checked={isDoubleAttempt}
-                onChange={(e) => onDoubleAttemptChange(e.target.checked)}
-                disabled={!isCurrentPlayer}
-                className="checkbox checkbox-primary h-6 w-6"
-              />
-              <span className="text-lg text-gray-700">Dupla</span>
-            </label>
-            {isDoubleAttempt && isCurrentPlayer && (
-              <label className="flex items-center gap-3">
-                <input
-                  type="checkbox"
-                  checked={doubleHit}
-                  onChange={(e) => onDoubleHitChange(e.target.checked)}
-                  className="checkbox checkbox-success h-6 w-6"
-                />
-                <span className="text-lg text-gray-700">Talált</span>
-              </label>
-            )}
           </div>
         )}
       </div>
