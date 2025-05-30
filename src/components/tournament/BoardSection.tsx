@@ -5,6 +5,8 @@ interface BoardSectionProps {
 }
 
 function BoardSection({ boards }: BoardSectionProps) {
+  //sort boards by boardNumber
+  boards.sort((a, b) => a.boardNumber - b.boardNumber);
   return (
     <div className="mt-6">
       <h2 className="text-xl font-bold">Táblák</h2>
@@ -15,7 +17,7 @@ function BoardSection({ boards }: BoardSectionProps) {
           {boards.map((board, index) => (
             <div key={board._id} className="card bg-base-200 shadow-md">
               <div className="card-body">
-                <h3 className="card-title">Tábla {index+1}</h3>
+                <h3 className="card-title">Tábla {board.boardNumber}</h3>
                 <p
                   className={`text-lg font-bold ${
                     board.status === "idle"

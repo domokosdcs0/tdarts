@@ -480,196 +480,218 @@ export async function PATCH(
           }
         }
       } else {
-      const groupIndex = match.round || 0;
-      console.log(`Updating group standings for groupIndex: ${groupIndex}`);
-
-      if (!tournament.groups[groupIndex]) {
-        console.error(`Group not found at index: ${groupIndex}, groups:`, tournament.groups);
-        return NextResponse.json({ error: "Csoport nem található" }, { status: 404 });
-      }
-
-      const group = tournament.groups[groupIndex];
-
-      // Initialize standings if empty
-      if (!group.standings || group.standings.length === 0) {
-        console.log("Initializing empty group standings");
-        group.standings = group.players.map((p: any) => ({
-          playerId: p.playerId?.toString() || p._id?.toString(),
-          points: 0,
-          legsWon: 0,
-          legsLost: 0,
-          legDifference: 0,
-          rank: 1,
-        }));
-
-        // Add players if not in standings
-        if (
-          !group.standings.some(
-            (s: Standing) => (typeof s.playerId === "string" ? s.playerId : s.playerId.toString()) === match.player1._id.toString()
-          )
-        ) {
-          group.standings.push({
-            playerId: match.player1._id,
+        const groupIndex = match.round || 0;
+        console.log(`Updating group standings for groupIndex: ${groupIndex}`);
+      
+        if (!tournament.groups[groupIndex]) {
+          console.error(`Group not found at index: ${groupIndex}, groups:`, tournament.groups);
+          return NextResponse.json({ error: "Csoport nem található" }, { status: 404 });
+        }
+      
+        const group = tournament.groups[groupIndex];
+        // Set boardNumber to groupIndex + 1 (1-based)
+        group.boardNumber = groupIndex + 1; // Ensure 1-based numbering (1, 2, etc.)
+      
+        // Initialize standings if empty
+        if (!group.standings || group.standings.length === 0) {
+          console.log("Initializing empty group standings");
+          group.standings = group.players.map((p: any) => ({
+            playerId: p.playerId?.toString() || p._id?.toString(),
             points: 0,
             legsWon: 0,
             legsLost: 0,
             legDifference: 0,
             rank: 1,
-          });
-          console.log(`Added player1 to standings: ${match.player1._id}`);
+          }));
+      
+          // Add players if not in standings
+          if (
+            !group.standings.some(
+              (s: Standing) =>
+                (typeof s.playerId === "string" ? s.playerId : s.playerId.toString()) === match.player1._id.toString()
+            )
+          ) {
+            group.standings.push({
+              playerId: match.player1._id,
+              points: 0,
+              legsWon: 0,
+              legsLost: 0,
+              legDifference: 0,
+              rank: 1,
+            });
+            console.log(`Added player1 to standings: ${match.player1._id}`);
+          }
+      
+          if (
+            !group.standings.some(
+              (s: Standing) =>
+                (typeof s.playerId === "string" ? s.playerId : s.playerId.toString()) === match.player2._id.toString()
+            )
+          ) {
+            group.standings.push({
+              playerId: match.player2._id,
+              points: 0,
+              legsWon: 0,
+              legsLost: 0,
+              legDifference: 0,
+              rank: 1,
+            });
+            console.log(`Added player2 to standings: ${match.player2._id}`);
+          }
         }
-
-        if (
-          !group.standings.some(
-            (s: Standing) => (typeof s.playerId === "string" ? s.playerId : s.playerId.toString()) === match.player2._id.toString()
-          )
-        ) {
-          group.standings.push({
-            playerId: match.player2._id,
-            points: 0,
-            legsWon: 0,
-            legsLost: 0,
-            legDifference: 0,
-            rank: 1,
-          });
-          console.log(`Added player2 to standings: ${match.player2._id}`);
-        }
-      }
-
-      const player1Standing = group.standings.find(
-        (s: Standing) => {
-          const playerId = typeof s.playerId === "string" ? s.playerId : s.playerId.toString();
-          const matchPlayerId = match.player1._id.toString();
-          const isMatch = playerId === matchPlayerId;
-          console.log(`Checking player1Standing (update): s.playerId=${playerId}, match.player1._id=${matchPlayerId}, isMatch=${isMatch}`);
-          return isMatch;
-        }
-      );
-      const player2Standing = group.standings.find(
-        (s: Standing) => {
-          const playerId = typeof s.playerId === "string" ? s.playerId : s.playerId.toString();
-          const matchPlayerId = match.player2._id.toString();
-          const isMatch = playerId === matchPlayerId;
-          console.log(`Checking player2Standing (update): s.playerId=${playerId}, match.player2._id=${matchPlayerId}, isMatch=${isMatch}`);
-          return isMatch;
-        }
-      );
-
-      if (!player1Standing || !player2Standing) {
-        console.error("Player standings not found after initialization:", {
-          player1StandingExists: !!player1Standing,
-          player2StandingExists: !!player2Standing,
-          player1Id: match.player1._id,
-          player2Id: match.player2._id,
-          standings: group.standings,
+      
+        // Validate and fix all groups' boardNumber before saving
+        tournament.groups.forEach((g: any, index: number) => {
+          if (!g.boardNumber || typeof g.boardNumber !== "number") {
+            g.boardNumber = index + 1; // Set 1-based boardNumber for all groups
+            console.log(`Fixed boardNumber for group ${index}: ${g.boardNumber}`);
+          }
         });
-        return NextResponse.json(
-          { error: "Nem sikerült a csoport állás frissítése: játékosok nem találhatók a ranglistán" },
-          { status: 400 }
-        );
-      }
-
-      console.log("Points before update:", {
-        player1Points: player1Standing.points,
-        player2Points: player2Standing.points,
-      });
-
-      if (winnerId === match.player1._id.toString()) {
-        player1Standing.points = (player1Standing.points || 0) + 2;
-      } else if (winnerId === match.player2._id.toString()) {
-        player2Standing.points = (player2Standing.points || 0) + 2;
-      }
-
-      player1Standing.legsWon = (player1Standing.legsWon || 0) + player1LegsWon;
-      player1Standing.legsLost = (player1Standing.legsLost || 0) + player2LegsWon;
-      player1Standing.legDifference = player1Standing.legsWon - player1Standing.legsLost;
-
-      player2Standing.legsWon = (player2Standing.legsWon || 0) + player2LegsWon;
-      player2Standing.legsLost = (player2Standing.legsLost || 0) + player1LegsWon;
-      player2Standing.legDifference = player2Standing.legsWon - player2Standing.legsLost;
-
-      console.log("Points after update:", {
-        player1Points: player1Standing.points,
-        player2Points: player2Standing.points,
-      });
-
-      const groupMatches = await MatchModel.find({
-        tournamentId: match.tournamentId,
-        round: groupIndex,
-        status: "finished",
-      }).lean();
-
-      const sortedStandings = [...group.standings].sort((a: Standing, b: Standing) => {
-        const aPoints = a.points || 0;
-        const bPoints = b.points || 0;
-        const aLegDifference = a.legDifference || 0;
-        const bLegDifference = b.legDifference || 0;
-        const aPlayerId = typeof a.playerId === "string" ? a.playerId : a.playerId.toString();
-        const bPlayerId = typeof b.playerId === "string" ? b.playerId : b.playerId.toString();
-
-        if (aPoints !== bPoints) return bPoints - aPoints;
-        if (aLegDifference !== bLegDifference) return bLegDifference - aLegDifference;
-
-        const headToHeadMatch = groupMatches.find(
-          (m: any) =>
-            (m.player1.toString() === aPlayerId && m.player2.toString() === bPlayerId) ||
-            (m.player1.toString() === bPlayerId && m.player2.toString() === aPlayerId)
-        );
-        if (headToHeadMatch) {
-          if (headToHeadMatch.winner?.toString() === aPlayerId) return -1;
-          if (headToHeadMatch.winner?.toString() === bPlayerId) return 1;
-        }
-        return 0;
-      });
-
-      let currentRank = 1;
-      for (let i = 0; i < sortedStandings.length; i++) {
-        if (i > 0) {
-          const prev = sortedStandings[i - 1];
-          const curr = sortedStandings[i];
-          const areEqual = prev.points === curr.points && prev.legDifference === curr.legDifference;
-          let headToHeadEqual = true;
-          const prevPlayerId = typeof prev.playerId === "string" ? prev.playerId : prev.playerId.toString();
-          const currPlayerId = typeof curr.playerId === "string" ? curr.playerId : curr.playerId.toString();
-
-          if (areEqual) {
-            const headToHeadMatch = groupMatches.find(
-              (m: any) =>
-                (m.player1.toString() === prevPlayerId && m.player2.toString() === currPlayerId) ||
-                (m.player1.toString() === currPlayerId && m.player2.toString() === prevPlayerId)
-            );
-            headToHeadEqual = !headToHeadMatch || !headToHeadMatch.winner;
+      
+        const player1Standing = group.standings.find(
+          (s: Standing) => {
+            const playerId = typeof s.playerId === "string" ? s.playerId : s.playerId.toString();
+            const matchPlayerId = match.player1._id.toString();
+            const isMatch = playerId === matchPlayerId;
+            console.log(`Checking player1Standing (update): s.playerId=${playerId}, match.player1._id=${matchPlayerId}, isMatch=${isMatch}`);
+            return isMatch;
           }
-          if (!areEqual || !headToHeadEqual) {
-            currentRank = i + 1;
+        );
+        const player2Standing = group.standings.find(
+          (s: Standing) => {
+            const playerId = typeof s.playerId === "string" ? s.playerId : s.playerId.toString();
+            const matchPlayerId = match.player2._id.toString();
+            const isMatch = playerId === matchPlayerId;
+            console.log(`Checking player2Standing (update): s.playerId=${playerId}, match.player2._id=${matchPlayerId}, isMatch=${isMatch}`);
+            return isMatch;
           }
+        );
+      
+        if (!player1Standing || !player2Standing) {
+          console.error("Player standings not found after initialization:", {
+            player1StandingExists: !!player1Standing,
+            player2StandingExists: !!player2Standing,
+            player1Id: match.player1._id,
+            player2Id: match.player2._id,
+            standings: group.standings,
+          });
+          return NextResponse.json(
+            { error: "Nem sikerült a csoport állás frissítése: játékosok nem találhatók a ranglistán" },
+            { status: 400 }
+          );
         }
-        sortedStandings[i].rank = currentRank;
+      
+        console.log("Points before update:", {
+          player1Points: player1Standing.points,
+          player2Points: player2Standing.points,
+        });
+      
+        if (winnerId === match.player1._id.toString()) {
+          player1Standing.points = (player1Standing.points || 0) + 2;
+        } else if (winnerId === match.player2._id.toString()) {
+          player2Standing.points = (player2Standing.points || 0) + 2;
+        }
+      
+        player1Standing.legsWon = (player1Standing.legsWon || 0) + player1LegsWon;
+        player1Standing.legsLost = (player1Standing.legsLost || 0) + player2LegsWon;
+        player1Standing.legDifference = player1Standing.legsWon - player1Standing.legsLost;
+      
+        player2Standing.legsWon = (player2Standing.legsWon || 0) + player2LegsWon;
+        player2Standing.legsLost = (player2Standing.legsLost || 0) + player1LegsWon;
+        player2Standing.legDifference = player2Standing.legsWon - player2Standing.legsLost;
+      
+        console.log("Points after update:", {
+          player1Points: player1Standing.points,
+          player2Points: player2Standing.points,
+        });
+      
+        const groupMatches = await MatchModel.find({
+          tournamentId: match.tournamentId,
+          round: groupIndex,
+          status: "finished",
+        }).lean();
+      
+        const sortedStandings = [...group.standings].sort((a: Standing, b: Standing) => {
+          const aPoints = a.points || 0;
+          const bPoints = b.points || 0;
+          const aLegDifference = a.legDifference || 0;
+          const bLegDifference = b.legDifference || 0;
+          const aPlayerId = typeof a.playerId === "string" ? a.playerId : a.playerId.toString();
+          const bPlayerId = typeof b.playerId === "string" ? b.playerId : b.playerId.toString();
+      
+          if (aPoints !== bPoints) return bPoints - aPoints;
+          if (aLegDifference !== bLegDifference) return bLegDifference - aLegDifference;
+      
+          const headToHeadMatch = groupMatches.find(
+            (m: any) =>
+              (m.player1.toString() === aPlayerId && m.player2.toString() === bPlayerId) ||
+              (m.player1.toString() === bPlayerId && m.player2.toString() === aPlayerId)
+          );
+          if (headToHeadMatch) {
+            if (headToHeadMatch.winner?.toString() === aPlayerId) return -1;
+            if (headToHeadMatch.winner?.toString() === bPlayerId) return 1;
+          }
+          return 0;
+        });
+      
+        let currentRank = 1;
+        for (let i = 0; i < sortedStandings.length; i++) {
+          if (i > 0) {
+            const prev = sortedStandings[i - 1];
+            const curr = sortedStandings[i];
+            const areEqual = prev.points === curr.points && prev.legDifference === curr.legDifference;
+            let headToHeadEqual = true;
+            const prevPlayerId = typeof prev.playerId === "string" ? prev.playerId : prev.playerId.toString();
+            const currPlayerId = typeof curr.playerId === "string" ? curr.playerId : curr.playerId.toString();
+      
+            if (areEqual) {
+              const headToHeadMatch = groupMatches.find(
+                (m: any) =>
+                  (m.player1.toString() === prevPlayerId && m.player2.toString() === currPlayerId) ||
+                  (m.player1.toString() === currPlayerId && m.player2.toString() === prevPlayerId)
+              );
+              headToHeadEqual = !headToHeadMatch || !headToHeadMatch.winner;
+            }
+            if (!areEqual || !headToHeadEqual) {
+              currentRank = i + 1;
+            }
+          }
+          sortedStandings[i].rank = currentRank;
+        }
+      
+        group.standings = sortedStandings;
+        console.log("Group standings after update:", group.standings);
+      
+        const boardId = match.boardId;
+        const status = await MatchModel.findOne({
+          boardId,
+          status: "pending",
+        });
+        if (!status) {
+          await BoardModel.findOneAndUpdate(
+            { boardId },
+            { status: "idle", updatedAt: new Date() }
+          );
+        } else {
+          await BoardModel.findOneAndUpdate(
+            { boardId },
+            { status: "waiting", updatedAt: new Date() }
+          );
+        }
+
+        console.log(tournament.groups);
+      
+        try {
+          await tournament.save();
+          console.log(`Tournament standings saved, tournamentId: ${tournamentId}`);
+        } catch (validationError: any) {
+          console.error("Tournament save validation error:", validationError);
+          return NextResponse.json(
+            { error: "Nem sikerült a torna mentése: " + validationError.message },
+            { status: 400 }
+          );
+        }
       }
-
-      group.standings = sortedStandings;
-      console.log("Group standings after update:", group.standings);
-
-      const boardId = match.boardId;
-      const status = await MatchModel.findOne({
-        boardId,
-        status: "pending",
-      });
-      if (!status) {
-        await BoardModel.findOneAndUpdate(
-          { boardId },
-          { status: "idle", updatedAt: new Date() }
-        );
-      } else {
-        await BoardModel.findOneAndUpdate(
-          { boardId },
-          { status: "waiting", updatedAt: new Date() }
-        );
-      }
-
-      await tournament.save();
-      console.log(`Tournament standings saved, tournamentId: ${tournamentId}`);
-    }
 
     return NextResponse.json({ success: true });
   } catch (error: any) {
