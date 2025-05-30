@@ -12,10 +12,10 @@ function BoardSection({ boards }: BoardSectionProps) {
         <p>Nincsenek még táblák konfigurálva.</p>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-          {boards.map((board) => (
+          {boards.map((board, index) => (
             <div key={board._id} className="card bg-base-200 shadow-md">
               <div className="card-body">
-                <h3 className="card-title">Tábla {board.boardNumber}</h3>
+                <h3 className="card-title">Tábla {index+1}</h3>
                 <p
                   className={`text-lg font-bold ${
                     board.status === "idle"

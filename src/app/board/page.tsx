@@ -6,6 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { toast } from "react-hot-toast";
 import DartsCounter from "@/components/dartsCounter";
+import { Board } from "@/types/boardSchema";
 
 const validateSchema = z.object({
   code: z.string().min(1, "A torna kód megadása kötelező"),
@@ -32,6 +33,7 @@ export default function BoardPage() {
   const [secondsRemaining, setSecondsRemaining] = useState(300); // 5 minutes
   const [timerExpired, setTimerExpired] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [boards, setBoards] = useState<Board[]>([]);
 
   const validateForm = useForm<ValidateForm>({
     resolver: zodResolver(validateSchema),
@@ -221,6 +223,7 @@ export default function BoardPage() {
           throw new Error(nextError.error || "Nem sikerült a mérkőzés lekérése");
         }
         const matchData = await nextMatchRes.json();
+        console.log(matchData)
         setNextMatch(matchData);
         setIsReady(false);
         localStorage.setItem("matchId", matchData.matchId || "");
@@ -426,36 +429,39 @@ export default function BoardPage() {
   return (
     <main className="min-h-screen w-full bg-base-200 flex items-center justify-center relative">
       {/* Exit Button */}
-      {(!isReady || nextMatch?.noMatch) && (
-        <div className="fixed bottom-4 right-4 z-40 flex gap-3">
-          <button
-            className="ó btn btn-error btn-lg z-50"
-            onClick={handleExit}
-            disabled={loading}
-          >
-            {loading ? <span className="loading loading-spinner"></span> : "Kilépés a tábláról"}
-          </button>
-          <button
-          onClick={toggleFullscreen}
-          className="btn btn-info btn-lg z-50"
-          disabled={loading}
-        >
-          {loading ? (
-            <span className="loading loading-spinner"></span>
-          ) : isFullscreen ? (
-            "Kilépés a teljes képernyőből"
-          ) : (
-            "Teljes képernyő"
-          )}
-    </button>
-          <button 
-            onClick={() => checkOngoingMatch(selectedBoard!)}
-            className="btn btn-warning btn-lg z-50"
-          >
-            {loading ? <span className="loading loading-spinner"></span> : "Frissítés"}
-          </button>
-        </div>
-      )}
+      <div className="fixed bottom-4 right-4 z-40 flex gap-3">
+  {(!isReady || nextMatch?.noMatch) && (
+    <>
+      <button
+        className="btn btn-error btn-lg z-50" // Removed typo 'ó' from className
+        onClick={handleExit}
+        disabled={loading}
+      >
+        {loading ? <span className="loading loading-spinner"></span> : "Kilépés a tábláról"}
+      </button>
+      <button
+        onClick={() => checkOngoingMatch(selectedBoard!)}
+        className="btn btn-warning btn-lg z-50"
+        disabled={loading}
+      >
+        {loading ? <span className="loading loading-spinner"></span> : "Frissítés"}
+      </button>
+    </>
+  )}
+  <button
+    onClick={toggleFullscreen}
+    className="btn btn-info btn-lg z-50"
+    disabled={loading}
+  >
+    {loading ? (
+      <span className="loading loading-spinner"></span>
+    ) : isFullscreen ? (
+      "Kilépés a teljes képernyőből"
+    ) : (
+      "Teljes képernyő"
+    )}
+  </button>
+</div>
 
       {!tournamentId ? (
         <div className="card bg-base-100 shadow-xl p-6 w-full max-w-md">

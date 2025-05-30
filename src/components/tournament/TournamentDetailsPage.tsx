@@ -39,7 +39,19 @@ export interface Group {
     playerId: { _id: string; name: string };
     number: number;
   }[];
-  matches: Match[];
+  boardNumber: string;
+  matches: {
+    _id: string;
+    boardId: string;
+    status: "pending" | "ongoing" | "finished";
+    player1: { _id: string; name: string };
+    player2: { _id: string; name: string };
+    scorer?: { _id: string; name: string };
+    stats: {
+      player1: { legsWon: number; average: number; checkoutRate: number; dartsThrown: number };
+      player2: { legsWon: number; average: number; checkoutRate: number; dartsThrown: number };
+    }
+  }[]
   standings: {
     playerId: { _id: string; name: string };
     points: number;
@@ -133,6 +145,7 @@ export default function TournamentDetailsPage() {
       const data = await res.json();
       setTournament(data.tournament);
       setBoards(data.boards);
+      console.log(data)
     } catch (error: any) {
       toast.error(error.message || "Nem sikerült a torna lekérése");
     } finally {

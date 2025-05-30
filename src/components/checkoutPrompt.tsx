@@ -1,12 +1,13 @@
-
 export interface CheckoutPromptProps {
-    checkoutDartsInput: string;
-    doubleAttemptsInput: string;
-    loading: boolean;
-    onCheckoutDartsChange: (value: string) => void;
-    onDoubleAttemptsChange: (value: string) => void;
-    onSubmit: () => void;
-  }
+  checkoutDartsInput: string;
+  doubleAttemptsInput: string;
+  loading: boolean;
+  onCheckoutDartsChange: (value: string) => void;
+  onDoubleAttemptsChange: (value: string) => void;
+  onSubmit: () => void;
+  onRevert: () => void;
+}
+
 export default function CheckoutPrompt({
   checkoutDartsInput,
   doubleAttemptsInput,
@@ -14,56 +15,38 @@ export default function CheckoutPrompt({
   onCheckoutDartsChange,
   onDoubleAttemptsChange,
   onSubmit,
+  onRevert,
 }: CheckoutPromptProps) {
+  onDoubleAttemptsChange("1"); // Default to 1 double attempt on mount
+  onCheckoutDartsChange("1"); // Default to 1 dart on mount
   return (
-    <div className="mt-6 w-full max-w-md bg-base-100 p-6 rounded-lg shadow-lg">
-      <h3 className="text-3xl font-bold text-gray-800 mb-6 text-center">Kiszálló részletek</h3>
-      <div className="space-y-6">
-        <div>
-          <label className="block text-xl font-medium text-gray-700 mb-3">Kiszálló nyilak (1-3)</label>
-          <div className="flex gap-3">
-            {[1, 2, 3].map((num) => (
-              <button
-                key={num}
-                className={`btn h-12 w-12 text-xl ${
-                  checkoutDartsInput === num.toString()
-                    ? "bg-primary text-white"
-                    : "bg-gray-100 text-gray-800 hover:bg-gray-200"
-                } transition-colors duration-200`}
-                onClick={() => onCheckoutDartsChange(num.toString())}
-                disabled={loading}
-              >
-                {num}
-              </button>
-            ))}
-          </div>
+    <div className="mt-6 w-full max-w-md bg-base-100 p-6 rounded-lg shadow-lg ">
+      <h3 className="text-3xl font-bold text-gray-800 mb-6 text-center">Megerősítés</h3>
+      <div className="space-y-6 flex flex-col gap-3">
+        <div className="flex flex-col gap-1">
+          <span className="italic font-medium text-2xl">
+            Megerősiti hogy véget ért a leg, és a követekző leg indulhat:
+          </span>
+          <span className="italic text-lg">
+            Megerősítés után már nem lehet visszalépni!
+          </span>
         </div>
-        <div>
-          <label className="block text-xl font-medium text-gray-700 mb-3">Dupla nyilak (1-3)</label>
-          <div className="flex gap-3">
-            {[1, 2, 3].map((num) => (
-              <button
-                key={num}
-                className={`btn h-12 w-12 text-xl ${
-                  doubleAttemptsInput === num.toString()
-                    ? "bg-primary text-white"
-                    : "bg-gray-100 text-gray-800 hover:bg-gray-200"
-                } transition-colors duration-200`}
-                onClick={() => onDoubleAttemptsChange(num.toString())}
-                disabled={loading}
-              >
-                {num}
-              </button>
-            ))}
-          </div>
+        <div className="flex gap-3">
+          <button
+            className="btn btn-success h-12 flex-1 text-xl font-semibold bg-green-600 text-white hover:bg-green-700 transition-colors duration-200"
+            onClick={onSubmit}
+            disabled={loading || !checkoutDartsInput || !doubleAttemptsInput}
+          >
+            {loading ? <span className="loading loading-spinner"></span> : "Megerősítés"}
+          </button>
+          <button
+            className="btn btn-error h-12 flex-1 text-xl font-semibold bg-red-600 text-white hover:bg-red-700 transition-colors duration-200"
+            onClick={onRevert}
+            disabled={loading}
+          >
+            Mégse
+          </button>
         </div>
-        <button
-          className="btn btn-success h-12 w-full text-xl font-semibold bg-green-600 text-white hover:bg-green-700 transition-colors duration-200"
-          onClick={onSubmit}
-          disabled={loading || !checkoutDartsInput || !doubleAttemptsInput}
-        >
-          {loading ? <span className="loading loading-spinner"></span> : "Megerősítés"}
-        </button>
       </div>
     </div>
   );

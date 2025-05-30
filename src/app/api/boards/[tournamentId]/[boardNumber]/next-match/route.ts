@@ -25,19 +25,23 @@ export async function GET(
       return NextResponse.json({ error: "Érvénytelen tábla szám" }, { status: 400 });
     }
     
-    const boards = await BoardModel.find({}).lean<Board[]>();
-    const board = boards[groupIndex]
+    const board = await BoardModel.find({tournamentId, boardNumber: parseInt(boardNumber)}).lean<Board[]>();
 
+    if(!board) {
+      return NextResponse.json({ error: "Tábla nem található" }, { status: 404 });
+    }
     // Keresünk egy pending mérkőzést az adott csoportban
     const match = await MatchModel.findOne({
       tournamentId,
-      boardId: board.boardId,
+      boardId: board[0].boardId,
       status: "pending",
     })
       .populate("player1", "name", PlayerModel)
       .populate("player2", "name", PlayerModel)
       .populate("scorer", "name", PlayerModel)
       .lean() as PopulatedMatch | null;
+
+    console.log("Következő mérkőzés:", match);
     if (!match) {
       return NextResponse.json({ noMatch: true }, { status: 200 });
     }

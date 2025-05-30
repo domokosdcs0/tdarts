@@ -16,15 +16,17 @@ export async function GET(request: Request) {
     }
     console.log("tournamentId:", tournamentId);
     console.log("boardNumber:", boardNumber);
-    const boards = await BoardModel.find({
+    const board = await BoardModel.find({
       tournamentId,
+      boardNumber: parseInt(boardNumber)
     }).lean<Board[]>()
-    const board = boards[parseInt(boardNumber)-1]
     if (!board) {
       return NextResponse.json({ error: "Tábla nem található" }, { status: 404 });
     }
 
-    return NextResponse.json({ boardId: board.boardId });
+    console.log(board)
+
+    return NextResponse.json({ boardId: board[0].boardId, boardNumber: board[0].boardNumber });
   } catch (error) {
     console.error("Hiba a tábla lekérésekor:", error);
     return NextResponse.json({ error: "Nem sikerült a tábla lekérése" }, { status: 500 });

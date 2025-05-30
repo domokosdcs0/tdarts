@@ -29,9 +29,9 @@ export default function ScoreInput({
   };
 
   return (
-    <div className="mt-6 w-full max-w-xl">
-      <div className="mb-1">
-        <div className="input input-bordered w-full flex items-center justify-between py-4 px-6 text-3xl bg-white border-gray-300 rounded-lg">
+    <div className="w-full max-w-xl">
+      <div className="">
+        <div className="input input-bordered h-22 w-full flex items-center justify-between py-4 px-6 text-3xl bg-white border-gray-300 rounded-lg">
           <span>{inputScore || "0"}</span>
           <button
             className="btn btn-ghost text-2xl"
@@ -46,7 +46,7 @@ export default function ScoreInput({
         {Array.from({ length: 9 }, (_, i) => i + 1).map((num) => (
           <button
             key={num}
-            className="btn btn-outline h-16 text-2xl bg-white text-gray-800 hover:bg-gray-100 transition-colors duration-200"
+            className="btn btn-outline h-22 text-2xl bg-white text-gray-800 hover:bg-gray-100 transition-colors duration-200"
             onClick={() => handleNumpad(num.toString())}
             disabled={loading}
           >
@@ -54,21 +54,21 @@ export default function ScoreInput({
           </button>
         ))}
         <button
-          className="btn btn-warning h-16 text-2xl bg-yellow-500 text-white hover:bg-yellow-600 transition-colors duration-200"
+          className="btn btn-warning h-22 text-2xl bg-yellow-500 text-white hover:bg-yellow-600 transition-colors duration-200"
           onClick={() => onInputChange(inputScore.slice(0, -1))}
           disabled={loading || !inputScore}
         >
           ⌫
         </button>
         <button
-          className="btn btn-outline h-16 text-2xl bg-white text-gray-800 hover:bg-gray-100 transition-colors duration-200"
+          className="btn btn-outline h-22 text-2xl bg-white text-gray-800 hover:bg-gray-100 transition-colors duration-200"
           onClick={() => handleNumpad("0")}
           disabled={loading || inputScore.length >= 3}
         >
           0
         </button>
         <button
-          className="btn btn-primary h-16 text-2xl bg-primary text-white hover:bg-primary-dark transition-colors duration-200"
+          className="btn btn-primary h-22 text-2xl bg-primary text-white hover:bg-primary-dark transition-colors duration-200"
           onClick={onThrow}
           disabled={loading || !inputScore}
         >

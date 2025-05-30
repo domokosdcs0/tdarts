@@ -208,6 +208,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ cod
       groups.push({
         players: numberedPlayers,
         matches,
+        boardNumber: boards[groupIndex].boardNumber,
         standings: numberedPlayers.map((p) => ({
           playerId: p.playerId,
           points: 0,

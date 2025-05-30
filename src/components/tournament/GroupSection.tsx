@@ -22,6 +22,8 @@ function GroupSection({ groups, getEliminatedPlayers, matchFilter, setMatchFilte
     }
   }, []);
 
+  console.log(groups)
+
   useEffect(() => {
     if (tournamentEndDate) {
       const endDate = new Date(tournamentEndDate).getTime();
@@ -116,7 +118,7 @@ function GroupSection({ groups, getEliminatedPlayers, matchFilter, setMatchFilte
                   <div className="card-body">
                     <div className="flex justify-between items-center">
                       <h3 className="card-title">
-                        Csoport {index + 1} (Tábla {index + 1})
+                        Csoport {index + 1} (Tábla {group.boardNumber})
                         {pinnedGroupId === group._id && (
                           <span className="ml-2 text-yellow-500">📍</span>
                         )}
@@ -246,41 +248,41 @@ function GroupSection({ groups, getEliminatedPlayers, matchFilter, setMatchFilte
                                   <tbody>
                                     {group.matches
                                       .filter((match) =>
-                                        matchFilter === "all" ? true : match.matchReference?.status === matchFilter
+                                        matchFilter === "all" ? true : match.status === matchFilter
                                       )
                                       .map((match, matchIndex) => (
                                         <tr key={match._id || matchIndex}>
                                           <td>{matchIndex + 1}</td>
                                           <td>
-                                            {match.matchReference?.player1?.name || "Ismeretlen"} vs{" "}
-                                            {match.matchReference?.player2?.name || "Ismeretlen"}
+                                            {match.player1.name || "Ismeretlen"} vs{" "}
+                                            {match.player2.name || "Ismeretlen"}
                                           </td>
-                                          <td>{match.matchReference?.scorer?.name || "Nincs"}</td>
+                                          <td>{match.scorer?.name|| "Nincs"}</td>
                                           <td>
                                             <span
                                               className={`badge ${
-                                                match.matchReference?.status === "pending"
+                                                match.status === "pending"
                                                   ? "badge-warning"
-                                                  : match.matchReference?.status === "ongoing"
+                                                  : match.status === "ongoing"
                                                   ? "badge-info"
                                                   : "badge-success"
                                               }`}
                                             >
-                                              {match.matchReference?.status === "pending"
+                                              {match.status=== "pending"
                                                 ? "Függőben"
-                                                : match.matchReference?.status === "ongoing"
+                                                : match.status=== "ongoing"
                                                 ? "Folyamatban"
-                                                : match.matchReference?.status === "finished"
+                                                : match.status=== "finished"
                                                 ? "Befejezve"
                                                 : "-"}
                                             </span>
                                           </td>
                                           <td>
-                                            {(match.matchReference?.status === "finished" || match.matchReference?.status === "ongoing") &&
-                                            match.matchReference?.stats ? (
+                                            {(match.status=== "finished" || match.status=== "ongoing") &&
+                                            match.stats ? (
                                               <span className="badge badge-neutral">
-                                                {match.matchReference.stats.player1.legsWon}-
-                                                {match.matchReference.stats.player2.legsWon}
+                                                {match.stats.player1.legsWon}-
+                                                {match.stats.player2.legsWon}
                                               </span>
                                             ) : (
                                               "-"

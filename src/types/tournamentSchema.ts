@@ -24,6 +24,7 @@ export const TournamentSchema = new mongoose.Schema(
             number: { type: Number, required: true },
           },
         ],
+        boardNumber: { type: Number, required: true },
         matches: [{ type: mongoose.Schema.Types.ObjectId, ref: "Match" }],
         standings: [
           {
@@ -139,6 +140,7 @@ export interface Tournament {
       playerId: mongoose.Types.ObjectId;
       number: number;
     }[];
+    boardNumber: number
     matches: mongoose.Types.ObjectId[];
     standings: {
       playerId: mongoose.Types.ObjectId;
@@ -176,6 +178,7 @@ export interface PopulatedTournament extends Omit<Tournament, "players" | "group
       number: number;
     }[];
     matches: PopulatedMatch[];
+    boardNumber: number;
     standings: {
       playerId: mongoose.Types.ObjectId;
       points: number;
