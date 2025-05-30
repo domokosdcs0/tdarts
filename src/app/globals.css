@@ -41,26 +41,26 @@
   default: true;
   prefersdark: true;
   color-scheme: "light";
-  --color-base-100: oklch(98% 0 0);
-  --color-base-200: oklch(96% 0.001 286.375);
-  --color-base-300: oklch(92% 0.004 286.32);
-  --color-base-content: oklch(21% 0.006 285.885);
-  --color-primary: oklch(51% 0.222 16.935);
-  --color-primary-content: oklch(98% 0.003 247.858);
-  --color-secondary: oklch(59% 0.145 163.225);
-  --color-secondary-content: oklch(100% 0 0);
-  --color-accent: oklch(85% 0.138 181.071);
-  --color-accent-content: oklch(27% 0.046 192.524);
-  --color-neutral: oklch(21% 0.006 285.885);
-  --color-neutral-content: oklch(98% 0 0);
-  --color-info: oklch(60% 0.126 221.723);
-  --color-info-content: oklch(98% 0.019 200.873);
-  --color-success: oklch(62% 0.194 149.214);
-  --color-success-content: oklch(98% 0.018 155.826);
-  --color-warning: oklch(66% 0.179 58.318);
-  --color-warning-content: oklch(98% 0.022 95.277);
-  --color-error: oklch(59% 0.249 0.584);
-  --color-error-content: oklch(97% 0.014 343.198);
+  --color-base-100: rgb(250, 250, 250);
+  --color-base-200: rgb(245, 245, 245);
+  --color-base-300: rgb(235, 235, 235);
+  --color-base-content: rgb(55, 55, 55);
+  --color-primary: rgb(128, 0, 32);
+  --color-primary-content: rgb(255, 255, 255);
+  --color-secondary: rgb(0, 128, 128);
+  --color-secondary-content: rgb(0, 0, 0);
+  --color-accent: rgb(218, 165, 32);
+  --color-accent-content: rgb(70, 70, 70);
+  --color-neutral: rgb(55, 55, 55);
+  --color-neutral-content: rgb(255, 255, 255);
+  --color-info: rgb(30, 144, 255);
+  --color-info-content: rgb(255, 255, 255);
+  --color-success: rgb(50, 205, 50);
+  --color-success-content: rgb(255, 255, 255);
+  --color-warning: rgb(255, 165, 0);
+  --color-warning-content: rgb(255, 255, 255);
+  --color-error: rgb(220, 20, 60);
+  --color-error-content: rgb(255, 255, 255);
   --radius-selector: 0.5rem;
   --radius-field: 0.25rem;
   --radius-box: 0.5rem;
@@ -69,206 +69,4 @@
   --border: 1px;
   --depth: 0;
   --noise: 1;
-}
-/* Neonbird téma fallback stílusok */
-[data-theme="neonbird"] .bg-base-100 {
-  background-color: #1E2335;
-}
-[data-theme="neonbird"] .bg-base-200 {
-  background-color: #30374F;
-}
-[data-theme="neonbird"] .bg-base-300 {
-  background-color: #40465D;
-}
-[data-theme="neonbird"] .text-base-content {
-  color: #F1F2F5;
-}
-[data-theme="neonbird"] .bg-primary {
-  background-color: #BF2A2A;
-}
-[data-theme="neonbird"] .text-primary {
-  color: #BF2A2A;
-}
-[data-theme="neonbird"] .text-primary-content {
-  color: #F7F8FA;
-}
-[data-theme="neonbird"] .bg-secondary {
-  background-color: #C3E88D;
-}
-[data-theme="neonbird"] .text-secondary {
-  color: #C3E88D;
-}
-[data-theme="neonbird"] .text-secondary-content {
-  color: #F6F9E9;
-}
-[data-theme="neonbird"] .bg-accent {
-  background-color: #B3B3B3;
-}
-[data-theme="neonbird"] .text-accent {
-  color: #B3B3B3;
-}
-[data-theme="neonbird"] .bg-neutral {
-  background-color: #1E2335;
-}
-[data-theme="neonbird"] .text-neutral {
-  color: #1E2335;
-}
-[data-theme="neonbird"] .bg-info {
-  background-color: #5DB0D9;
-}
-[data-theme="neonbird"] .text-info {
-  color: #5DB0D9;
-}
-[data-theme="neonbird"] .bg-success {
-  background-color: #2D9F5D;
-}
-[data-theme="neonbird"] .text-success {
-  color: #2D9F5D;
-}
-[data-theme="neonbird"] .bg-warning {
-  background-color: #C4A148;
-}
-[data-theme="neonbird"] .text-warning {
-  color: #C4A148;
-}
-[data-theme="neonbird"] .bg-error {
-  background-color: #571B1B;
-}
-[data-theme="neonbird"] .text-error {
-  color: #571B1B;
-}
-[data-theme="neonbird"] .btn-primary {
-  background-color: #BF2A2A;
-  color: #F7F8FA;
-  border-color: #BF2A2A;
-}
-[data-theme="neonbird"] .btn-primary:hover {
-  background-color: #A12323;
-  border-color: #A12323;
-}
-[data-theme="neonbird"] .btn-secondary {
-  background-color: #C3E88D;
-  color: #1E2335;
-  border-color: #C3E88D;
-}
-[data-theme="neonbird"] .btn-secondary:hover {
-  background-color: #B3D87D;
-  border-color: #B3D87D;
-}
-[data-theme="neonbird"] .loading-spinner {
-  border: 4px solid #BF2A2A;
-  border-top-color: transparent;
-}
-
-/* Emerald téma fallback stílusok */
-[data-theme="emerald"] .bg-base-100 {
-  background-color: #F7F7F7;
-}
-[data-theme="emerald"] .bg-base-200 {
-  background-color: #EFF0F3;
-}
-[data-theme="emerald"] .bg-base-300 {
-  background-color: #E0E2E9;
-}
-[data-theme="emerald"] .text-base-content {
-  color: #2F343E;
-}
-[data-theme="emerald"] .bg-primary {
-  background-color: #BF2A2A;
-}
-[data-theme="emerald"] .text-primary {
-  color: #BF2A2A;
-}
-[data-theme="emerald"] .text-primary-content {
-  color: #F7F8FA;
-}
-[data-theme="emerald"] .bg-secondary {
-  background-color: #29A374;
-}
-[data-theme="emerald"] .text-secondary {
-  color: #29A374;
-}
-[data-theme="emerald"] .text-secondary-content {
-  color: #FFFFFF;
-}
-[data-theme="emerald"] .bg-accent {
-  background-color: #A8E7D5;
-}
-[data-theme="emerald"] .text-accent {
-  color: #A8E7D5;
-}
-[data-theme="emerald"] .bg-neutral {
-  background-color: #2F343E;
-}
-[data-theme="emerald"] .text-neutral {
-  color: #2F343E;
-}
-[data-theme="emerald"] .bg-info {
-  background-color: #2795C9;
-}
-[data-theme="emerald"] .text-info {
-  color: #2795C9;
-}
-[data-theme="emerald"] .bg-success {
-  background-color: #1C9E67;
-}
-[data-theme="emerald"] .text-success {
-  color: #1C9E67;
-}
-[data-theme="emerald"] .bg-warning {
-  background-color: #D4932B;
-}
-[data-theme="emerald"] .text-warning {
-  color: #D4932B;
-}
-[data-theme="emerald"] .bg-error {
-  background-color: #B81F1F;
-}
-[data-theme="emerald"] .text-error {
-  color: #B81F1F;
-}
-[data-theme="emerald"] .btn-primary {
-  background-color: #BF2A2A;
-  color: #F7F8FA;
-  border-color: #BF2A2A;
-}
-[data-theme="emerald"] .btn-primary:hover {
-  background-color: #A12323;
-  border-color: #A12323;
-}
-[data-theme="emerald"] .btn-secondary {
-  background-color: #29A374;
-  color: #FFFFFF;
-  border-color: #29A374;
-}
-[data-theme="emerald"] .btn-secondary:hover {
-  background-color: #238F63;
-  border-color: #238F63;
-}
-[data-theme="emerald"] .loading-spinner {
-  border: 4px solid #BF2A2A;
-  border-top-color: transparent;
-}
-
-/* Általános fallback stílusok */
-.btn {
-  padding: 0.5rem 1rem;
-  border: 1px solid transparent;
-  border-radius: 0.25rem;
-  cursor: pointer;
-}
-.card {
-  background-color: #FFFFFF;
-  border-radius: 0.5rem;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  padding: 1rem;
-}
-.input {
-  padding: 0.5rem;
-  border: 1px solid #D1D5DB;
-  border-radius: 0.25rem;
-}
-.label-text {
-  font-size: 0.875rem;
-  color: #4B5563;
 }
