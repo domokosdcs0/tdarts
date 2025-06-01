@@ -17,6 +17,8 @@ interface PopulatedMatch {
   status: "pending" | "ongoing" | "finished";
   player1: { _id: string; name: string };
   player2: { _id: string; name: string };
+  player1Status: "unready" | "ready";
+  player2Status: "unready" | "ready";
   scorer?: { _id: string; name: string };
   stats: {
     player1: { legsWon: number; average: number; checkoutRate: number; dartsThrown: number };
@@ -67,6 +69,7 @@ interface PopulatedTournament extends Omit<Tournament, "players" | "groups" | "k
       legDifference: number;
       rank?: number;
     }[];
+    boardNumber: number;
   }[];
   knockout: {
     rounds: {
@@ -140,9 +143,10 @@ export async function GET(request: Request, { params }: { params: Promise<{ code
       tournamentId: tournament._id,
       status: "finished",
     })
-      .select("player1 player2 legs")
+      .select("player1 player2 legs winner")
       .populate("player1", "name")
       .populate("player2", "name")
+      .populate("winner", "name")
       .lean<PopulatedMatch[]>();
 
     const playerStats: { [key: string]: { oneEightiesCount: number; highestCheckout: number; matchesWon: number } } = {};
@@ -204,7 +208,6 @@ export async function GET(request: Request, { params }: { params: Promise<{ code
           highestCheckout: playerStats[player._id.toString()].highestCheckout,
         },
       })),
-      // Ensure standing is included if it exists
       standing: tournament.standing || [],
     };
 
@@ -217,6 +220,10 @@ export async function GET(request: Request, { params }: { params: Promise<{ code
 
     const boardsWithMatches = await Promise.all(
       boards.map(async (board) => {
+        // Find the group corresponding to the board
+        const boardIndex = board.boardNumber - 1;
+        const group = updatedTournament.groups.find(g => g.boardNumber === board.boardNumber);
+
         if (board.status === "waiting") {
           const nextMatch = await MatchModel.findOne({
             tournamentId: tournament._id,
@@ -228,16 +235,29 @@ export async function GET(request: Request, { params }: { params: Promise<{ code
             .populate("scorer", "name")
             .lean<PopulatedMatch>();
 
-          return {
-            ...board,
-            nextMatch: nextMatch
-              ? {
-                  player1Name: nextMatch.player1.name,
-                  player2Name: nextMatch.player2.name,
-                  scribeName: nextMatch.scorer?.name || "Nincs",
-                }
-              : null,
-          };
+          if (nextMatch && group?.matches) {
+            const groupMatch = group.matches.find(m => m._id.toString() === nextMatch._id.toString());
+            console.log(`Board ${board.boardNumber} nextMatch:`, {
+              matchId: nextMatch._id,
+              groupMatchFound: !!groupMatch,
+              player1Status: groupMatch?.player1Status,
+              player2Status: groupMatch?.player2Status,
+            });
+
+            return {
+              ...board,
+              nextMatch: {
+                matchId: nextMatch._id.toString(),
+                player1Name: nextMatch.player1.name,
+                player2Name: nextMatch.player2.name,
+                player1Status: groupMatch?.player1Status || "unready",
+                player2Status: groupMatch?.player2Status || "unready",
+                scribeName: nextMatch.scorer?.name || "Nincs",
+              },
+              currentMatch: null,
+            };
+          }
+          return { ...board, nextMatch: null, currentMatch: null };
         } else if (board.status === "playing") {
           const currentMatch = await MatchModel.findOne({
             tournamentId: tournament._id,
@@ -249,22 +269,35 @@ export async function GET(request: Request, { params }: { params: Promise<{ code
             .populate("scorer", "name")
             .lean<PopulatedMatch>();
 
-          return {
-            ...board,
-            currentMatch: currentMatch
-              ? {
-                  player1Name: currentMatch.player1.name,
-                  player2Name: currentMatch.player2.name,
-                  scribeName: currentMatch.scorer?.name || "Nincs",
-                  stats: {
-                    player1Legs: currentMatch.stats?.player1?.legsWon || 0,
-                    player2Legs: currentMatch.stats?.player2?.legsWon || 0,
-                  },
-                }
-              : null,
-          };
+          if (currentMatch && group?.matches) {
+            const groupMatch = group.matches.find(m => m._id.toString() === currentMatch._id.toString());
+            console.log(`Board ${board.boardNumber} currentMatch:`, {
+              matchId: currentMatch._id,
+              groupMatchFound: !!groupMatch,
+              player1Status: groupMatch?.player1Status,
+              player2Status: groupMatch?.player2Status,
+            });
+
+            return {
+              ...board,
+              currentMatch: {
+                matchId: currentMatch._id.toString(),
+                player1Name: currentMatch.player1.name,
+                player2Name: currentMatch.player2.name,
+                player1Status: groupMatch?.player1Status || "unready",
+                player2Status: groupMatch?.player2Status || "unready",
+                scribeName: currentMatch.scorer?.name || "Nincs",
+                stats: {
+                  player1Legs: currentMatch.stats?.player1?.legsWon || 0,
+                  player2Legs: currentMatch.stats?.player2?.legsWon || 0,
+                },
+              },
+              nextMatch: null,
+            };
+          }
+          return { ...board, currentMatch: null, nextMatch: null };
         }
-        return board;
+        return { ...board, currentMatch: null, nextMatch: null };
       })
     );
 

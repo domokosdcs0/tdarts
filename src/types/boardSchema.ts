@@ -20,6 +20,7 @@ BoardSchema.pre('save', function (next) {
 });
 
 export interface Board {
+  _id: mongoose.Types.ObjectId;
   tournamentId: mongoose.Types.ObjectId;
   boardNumber?: number;
   boardId: string;

@@ -22,8 +22,6 @@ function GroupSection({ groups, getEliminatedPlayers, matchFilter, setMatchFilte
     }
   }, []);
 
-  console.log(groups)
-
   useEffect(() => {
     if (tournamentEndDate) {
       const endDate = new Date(tournamentEndDate).getTime();

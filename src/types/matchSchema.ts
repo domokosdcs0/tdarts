@@ -49,6 +49,8 @@ export interface Match extends Document {
   player1: mongoose.Types.ObjectId | Player;
   player2: mongoose.Types.ObjectId | Player;
   scorer?: mongoose.Types.ObjectId | Player;
+  player1Status: string;
+  player2Status: string;
   status: 'pending' | 'ongoing' | 'finished';
   legs: Leg[];
   stats: {
@@ -83,6 +85,8 @@ export const MatchSchema = new mongoose.Schema({
   player1Number: { type: Number, default: 1 },
   player2Number: { type: Number, default: 2 },
   scribeNumber: { type: Number, default: 0 },
+  player1Status: {type: String, default: "unready"},
+  player2Status: {type: String, default: "unready"},
   player1: { type: mongoose.Schema.Types.ObjectId, ref: 'Player', required: true },
   player2: { type: mongoose.Schema.Types.ObjectId, ref: 'Player', required: true },
   scorer: { type: mongoose.Schema.Types.ObjectId, ref: 'Player' },

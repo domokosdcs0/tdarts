@@ -31,8 +31,6 @@ const CustomSeed = ({ seed }: CustomSeedProps) => {
   const isTeam1Winner = team1.score!  > team2.score!;
   const isTeam2Winner = team1.score!  < team2.score!;
 
-  console.log(team2.name);
-
   return (
     <Seed className="flex items-center">
       <SeedItem className="border rounded p-2 bg-gray-800">
@@ -59,8 +57,6 @@ function BracketSection({ tournament }: BracketSectionProps) {
     if ( !tournament.knockout?.rounds) {
       return { rounds: [] };
     }
-
-    console.log('Tournament data:', tournament.knockout.rounds);
 
     return {
       rounds: tournament.knockout.rounds.map((round, index) => ({
@@ -93,8 +89,6 @@ function BracketSection({ tournament }: BracketSectionProps) {
       })),
     };
   }, [tournament]);
-
-  console.log(tournament)
 
   if (tournament.status === 'group') {
     return (

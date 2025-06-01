@@ -3,6 +3,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Player, Tournament } from "./TournamentDetailsPage";
+import toast from "react-hot-toast";
 
 const playerSchema = z.object({
   playerInput: z.string().min(1, "A játékos neve kötelező"),
@@ -99,7 +100,13 @@ function PlayerManagement({
         )}
         <div className="flex justify-between items-center mb-3">
           <h2 className="text-xl font-bold ">Játékosok</h2>
-          <span className="italic ">Torna kód: {code}</span>
+          <span 
+            className="italic cursor-pointer" 
+            onClick={() => {navigator.clipboard.writeText(code); toast.success("Vágólapra másolva!")}}
+            title="Kattints a másoláshoz"
+          >
+            Torna kód: {code}
+          </span>
         </div>
         <div className="flex gap-2 mb-4 items-center justify-between flex-wrap">
           <div className="flex gap-2">

@@ -2,6 +2,8 @@ import { connectMongo } from "@/lib/mongoose";
 import { getModels } from "@/lib/models";
 import { NextResponse } from "next/server";
 import { v4 as uuidv4 } from "uuid";
+import { Board } from "@/types/boardSchema";
+import { Match } from "@/types/tournamentSchema";
 
 function generateMatches(playerCount: number): { player1Idx: number; player2Idx: number; scorerIdx: number }[] {
   // Generate all possible pairs
@@ -160,7 +162,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ cod
         boardId: uuidv4(),
         boardNumber: i.toString(),
         status: "idle",
-        waitingPlayers: [],
+        waitingPlayers: [] as string[],
       });
     }
     await BoardModel.insertMany(boards);
@@ -227,6 +229,16 @@ export async function POST(request: Request, { params }: { params: Promise<{ cod
     tournament.groups = groups;
     tournament.status = "group";
     await tournament.save();
+
+   const boardsOnTournament = await BoardModel.find({ tournamentId: tournament._id }).lean<Board[]>();
+   //update the boards waitingPlayer with the first match palyers on the board
+   boardsOnTournament.forEach(async (board) => {
+      const firstMatch = await MatchModel.findOne({ boardId: board.boardId, status: "pending" }).sort({ createdAt: 1 }).lean<Match>();
+      if (firstMatch) {
+        board.waitingPlayers = [firstMatch.player1, firstMatch.player2];
+      }
+      await BoardModel.updateOne({ _id: board._id }, { $set: { waitingPlayers: board.waitingPlayers, status: board.status } });
+    })
 
     return NextResponse.json({ message: "Csoportok és mérkőzések sikeresen újragenerálva" });
   } catch (error: any) {

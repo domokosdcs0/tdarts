@@ -33,11 +33,14 @@ export default function BoardPage() {
   const [secondsRemaining, setSecondsRemaining] = useState(300); // 5 minutes
   const [timerExpired, setTimerExpired] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [boards, setBoards] = useState<Board[]>([]);
+  const [defaultValues, setDefaultValues] = useState({
+    code: "",
+    password: "",
+  });
 
   const validateForm = useForm<ValidateForm>({
     resolver: zodResolver(validateSchema),
-    defaultValues: { code: "", password: "" },
+    defaultValues: { code: defaultValues.code, password: defaultValues.password },
   });
 
   const boardForm = useForm<BoardForm>({
@@ -74,6 +77,17 @@ export default function BoardPage() {
     toast.success("Kilépve a tábláról");
   };
 
+  // Check for next match every 10 seconds if no match is currently running or loaded
+useEffect(() => {
+  if (!nextMatch || nextMatch.noMatch) {
+    const interval = setInterval(async () => {
+      await checkOngoingMatch(selectedBoard!);
+    }, 10000); // Check every 10 seconds
+
+    return () => clearInterval(interval); // Cleanup interval on component unmount
+  }
+}, [nextMatch]);
+
   // Start timer when a new match is loaded
   useEffect(() => {
     if (nextMatch && !nextMatch.noMatch && !isReady) {
@@ -81,6 +95,26 @@ export default function BoardPage() {
       setTimerExpired(false);
       setPlayer1Ready(false);
       setPlayer2Ready(false);
+
+      //set the board status to "waiting"
+      const updateBoardStatus = async () => {
+        if (!boardId) return;
+        try {
+          const res = await fetch(`/api/board/${boardId}/status`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ status: "waiting" }),
+          });
+          if (!res.ok) {
+            const error = await res.json();
+            throw new Error(error.error || "Nem sikerült a tábla állapotának frissítése");
+          }
+        } catch (error) {
+          console.error("Hiba a tábla állapotának frissítésekor:", error);
+        }
+      };
+
+      updateBoardStatus();
 
       const timer = setInterval(() => {
         setSecondsRemaining((prev) => {
@@ -250,7 +284,7 @@ export default function BoardPage() {
       const res = await fetch(`/api/matches/${nextMatch.matchId}/start`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ boardId }),
+        body: JSON.stringify({ boardId, tournamentId }),
       });
       if (!res.ok) {
         const error = await res.json();
@@ -266,6 +300,28 @@ export default function BoardPage() {
       setLoading(false);
     }
   };
+
+  const readyPlayer = async(playerId: string) => {
+    if (!nextMatch?.matchId || !boardId) return;
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/matches/${nextMatch.matchId}/ready`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ playerId }),
+      });
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error || "Nem sikerült a játékos állapotának frissítése");
+      }
+      setPlayer1Ready(true);
+      toast.success("Játékos állapota frissítve");
+    } catch (error: any) {
+      toast.error(error.message || "Nem sikerült a játékos állapotának frissítése");
+    } finally {
+      setLoading(false);
+    }
+  }
 
   // Mérkőzés befejezése
   const handleFinishMatch = async (finalStats: {
@@ -356,6 +412,18 @@ export default function BoardPage() {
 
   // Add event listener for fullscreen changes
   useEffect(() => {
+    const tournamentCode = window.localStorage.getItem("tournamentCode");
+    const tournamentPassword = window.localStorage.getItem("tournamentPassword");
+  
+    if (tournamentCode && tournamentPassword) {
+      setDefaultValues({
+        code: tournamentCode,
+        password: tournamentPassword,
+      });
+      console.log("Default values set:", { code: tournamentCode, password: tournamentPassword });
+    } else {
+      console.warn("LocalStorage values are empty or not set yet.");
+    }
     document.addEventListener("fullscreenchange", handleFullscreenChange);
     return () => {
       document.removeEventListener("fullscreenchange", handleFullscreenChange);
@@ -476,6 +544,7 @@ export default function BoardPage() {
                 {...validateForm.register("code")}
                 className="input input-bordered w-full"
                 placeholder="Pl. ABC12345"
+                defaultValue={defaultValues.code} // Pre-fill with stored tournament ID if available
               />
               {validateForm.formState.errors.code && (
                 <span className="text-error text-sm">
@@ -492,6 +561,7 @@ export default function BoardPage() {
                 {...validateForm.register("password")}
                 className="input input-bordered w-full"
                 placeholder="Torna jelszó"
+                defaultValue={defaultValues.password} // Pre-fill with stored password if available
               />
               {validateForm.formState.errors.password && (
                 <span className="text-error text-sm">
@@ -501,7 +571,7 @@ export default function BoardPage() {
             </div>
             <button type="submit" className="btn btn-primary w-full" disabled={loading}>
               {loading ? <span className="loading loading-spinner"></span> : "Validálás"}
-            </button>
+            </button>           
           </form>
         </div>
       ) : !selectedBoard ? (
@@ -564,6 +634,7 @@ export default function BoardPage() {
                     className="btn btn-success btn-outline btn-lg"
                     onClick={() => {
                       setPlayer1Ready(true);
+                      readyPlayer(nextMatch.player1Id);
                       if (player2Ready) {
                         handleReady();
                       }
@@ -585,6 +656,7 @@ export default function BoardPage() {
                     className="btn btn-success btn-outline btn-lg"
                     onClick={() => {
                       setPlayer2Ready(true);
+                      readyPlayer(nextMatch.player2Id);
                       if (player1Ready) {
                         handleReady();
                       }

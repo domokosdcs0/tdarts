@@ -16,17 +16,6 @@ export async function PATCH(
     const { winnerId, player1LegsWon, player2LegsWon, stats, highestCheckout, oneEighties } =
       await request.json();
 
-    console.log("Received data:", {
-      tournamentId,
-      matchId,
-      winnerId,
-      player1LegsWon,
-      player2LegsWon,
-      stats,
-      highestCheckout,
-      oneEighties,
-    });
-
     // Validate required fields
     if (
       !winnerId ||
@@ -69,12 +58,7 @@ export async function PATCH(
       .populate("scorer", "name");
     if (!match) {
       return NextResponse.json({ error: "Mérkőzés nem található" }, { status: 404 });
-    }
-    if (match.status !== "ongoing") {
-      return NextResponse.json(
-        { error: "A mérkőzés nem játszható állapotban van" },
-        { status: 400 }
-      );
+    
     }
 
     console.log("Match players:", {

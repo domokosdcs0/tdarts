@@ -69,6 +69,8 @@ export interface Match {
   matchReference: {
     _id: string;
     status: "pending" | "ongoing" | "finished";
+    player1Status: "unready" | "ready";
+    player2Status: "unready" | "ready";
     player1: { _id: string; name: string };
     player2: { _id: string; name: string };
     scorer?: { _id: string; name: string };
@@ -87,13 +89,19 @@ export interface Board {
   boardId: string;
   status: "idle" | "waiting" | "playing";
   waitingPlayers: { _id: string; name: string }[];
+  updatedAt: Date 
   nextMatch?: {
     player1Name: string;
+    player1Status: "unready" | "ready";
+    player2Status: "unready" | "ready";
     player2Name: string;
     scribeName: string;
   } | null;
   currentMatch?: {
+    matchId: string;  
     player1Name: string;
+    player1Status: "unready" | "ready";
+    player2Status: "unready" | "ready";
     player2Name: string;
     scribeName: string;
     stats: {
@@ -143,9 +151,47 @@ export default function TournamentDetailsPage() {
       const res = await fetch(`/api/tournaments/${code}`);
       if (!res.ok) throw new Error("Nem sikerült a torna lekérése");
       const data = await res.json();
+
+      const updatedBoards = data.boards.map((board: Board) => {
+        if (!board.currentMatch || !board.currentMatch.matchId) {
+          return board; // No current match, return unchanged
+        }
+
+        // Find the group corresponding to the board's boardNumber
+        const boardIndex = board.boardNumber - 1; // Assuming boardNumber starts at 1
+        const group = data.tournament.groups[boardIndex];
+
+        if (!group || !group.matches) {
+          console.warn(`No group or matches found for boardNumber ${board.boardNumber}`);
+          return board;
+        }
+
+        // Find the match with matching _id
+        const match = group.matches.find(
+          (m: { _id: string }) => m._id === board.currentMatch?.matchId
+        );
+
+        if (!match) {
+          console.warn(`Match ${board.currentMatch.matchId} not found in group ${boardIndex}`);
+          return board;
+        }
+
+        // Add player1Status and player2Status to currentMatch
+        return {
+          ...board,
+          currentMatch: {
+            ...board.currentMatch,
+            player1Status: match.player1Status,
+            player2Status: match.player2Status,
+          },
+        };
+      });
+
+      // Update state
       setTournament(data.tournament);
-      setBoards(data.boards);
-      console.log(data)
+      setBoards(updatedBoards);
+
+      console.log('Updated boards:', updatedBoards);
     } catch (error: any) {
       toast.error(error.message || "Nem sikerült a torna lekérése");
     } finally {
