@@ -1,26 +1,12 @@
 import mongoose, { Document } from 'mongoose';
 
-// LegSchema
-export const LegSchema = new mongoose.Schema({
-  player1Score: { type: Number, default: 501, min: 0 },
-  player2Score: { type: Number, default: 501, min: 0 },
-  player1Darts: [{ score: Number, darts: Number }],
-  player2Darts: [{ score: Number, darts: Number }],
-  winner: { type: mongoose.Schema.Types.ObjectId, ref: 'Player' },
-  checkout: {
-    player: { type: mongoose.Schema.Types.ObjectId, ref: 'Player' },
-    score: { type: Number },
-    darts: { type: Number },
-  },
-  createdAt: { type: Date, default: Date.now },
-});
-
-// Match Interface (for TypeScript)
+// Player Interface
 export interface Player {
   _id: mongoose.Types.ObjectId;
   name: string;
 }
 
+// Leg Interface
 export interface Leg {
   player1Throws: { score: number; darts: number }[];
   player2Throws: { score: number; darts: number }[];
@@ -32,25 +18,26 @@ export interface Leg {
     darts: number;
     playerId: mongoose.Types.ObjectId;
   };
-  oneEighties: {
+  oneEighties?: {
     player1: number[];
     player2: number[];
   };
   createdAt: Date;
 }
 
+// Match Interface
 export interface Match extends Document {
   _id: mongoose.Types.ObjectId;
   tournamentId: mongoose.Types.ObjectId;
-  boardId: string;
+  boardId?: string;
   player1Number: number;
   player2Number: number;
   scribeNumber: number;
+  player1Status: string;
+  player2Status: string;
   player1: mongoose.Types.ObjectId | Player;
   player2: mongoose.Types.ObjectId | Player;
   scorer?: mongoose.Types.ObjectId | Player;
-  player1Status: string;
-  player2Status: string;
   status: 'pending' | 'ongoing' | 'finished';
   legs: Leg[];
   stats: {
@@ -59,23 +46,31 @@ export interface Match extends Document {
       checkoutRate: number;
       dartsThrown: number;
       legsWon: number;
+      oneEighties: number;
+      highestCheckout: number
     };
     player2: {
       average: number;
       checkoutRate: number;
       dartsThrown: number;
       legsWon: number;
+      oneEighties: number;
+      highestCheckout: number
     };
   };
-  winner?: mongoose.Types.ObjectId;
+  winner?: mongoose.Types.ObjectId | Player;
   createdAt: Date;
   updatedAt: Date;
+  round?: number;
+  isKnockout: boolean;
 }
 
-export interface PopulatedMatch extends Omit<Match, 'player1' | 'player2' | 'scorer'> {
+// Populated Match Interface
+export interface PopulatedMatch extends Omit<Match, 'player1' | 'player2' | 'scorer' | 'winner'> {
   player1: Player;
   player2: Player;
   scorer?: Player;
+  winner?: Player;
 }
 
 // MatchSchema
@@ -85,8 +80,8 @@ export const MatchSchema = new mongoose.Schema({
   player1Number: { type: Number, default: 1 },
   player2Number: { type: Number, default: 2 },
   scribeNumber: { type: Number, default: 0 },
-  player1Status: {type: String, default: "unready"},
-  player2Status: {type: String, default: "unready"},
+  player1Status: { type: String, default: "unready" },
+  player2Status: { type: String, default: "unready" },
   player1: { type: mongoose.Schema.Types.ObjectId, ref: 'Player', required: true },
   player2: { type: mongoose.Schema.Types.ObjectId, ref: 'Player', required: true },
   scorer: { type: mongoose.Schema.Types.ObjectId, ref: 'Player' },
@@ -98,20 +93,38 @@ export const MatchSchema = new mongoose.Schema({
       winnerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Player' },
       checkoutDarts: Number,
       doubleAttempts: Number,
-      highestCheckout: { score: Number, darts: Number, playerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Player' } },
+      highestCheckout: {
+        score: Number,
+        darts: Number,
+        playerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Player' },
+      },
       oneEighties: { player1: [Number], player2: [Number] },
       createdAt: { type: Date, default: Date.now },
     }],
     validate: { validator: (v: any[]) => v.length <= 7, message: 'Too many legs (maximum 7 allowed)' },
   },
   stats: {
-    player1: { average: { type: Number, default: 0 }, dartsThrown: { type: Number, default: 0 }, legsWon: { type: Number, default: 0 } },
-    player2: { average: { type: Number, default: 0 }, dartsThrown: { type: Number, default: 0 }, legsWon: { type: Number, default: 0 } },
+    player1: {
+      average: { type: Number, default: 0 },
+      checkoutRate: { type: Number, default: 0 },
+      dartsThrown: { type: Number, default: 0 },
+      legsWon: { type: Number, default: 0 },
+      oneEighties: { type: Number, default: 0 },
+      highestCheckout: { type: Number, default: 0 },
+    },
+    player2: {
+      average: { type: Number, default: 0 },
+      checkoutRate: { type: Number, default: 0 },
+      dartsThrown: { type: Number, default: 0 },
+      legsWon: { type: Number, default: 0 },
+      oneEighties: { type: Number, default: 0 },
+      highestCheckout: { type: Number, default: 0 },
+    },
   },
   winner: { type: mongoose.Schema.Types.ObjectId, ref: 'Player' },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now },
-  round: { type: Number }, // if knockut is false this will act as the groupIndex
+  round: { type: Number },
   isKnockout: { type: Boolean, default: false },
 }, { collection: 'matches' });
 
@@ -130,17 +143,18 @@ MatchSchema.pre('save', async function (this: Match, next) {
       const player2Id = this.player2 instanceof mongoose.Types.ObjectId 
         ? this.player2.toString() 
         : (this.player2 as Player)._id?.toString();
-      const winnerId = this.winner.toString();
+      const winnerId = this.winner instanceof mongoose.Types.ObjectId
+        ? this.winner.toString()
+        : (this.winner as Player)._id?.toString();
 
-      if (!player1Id || !player2Id) {
+      if (!player1Id || !player2Id || !winnerId) {
         console.error('Player ID extraction failed:', {
           player1: this.player1,
           player2: this.player2,
+          winner: this.winner,
         });
         return next(new Error('Failed to extract player IDs'));
       }
-
-      console.log('Validating winner:', { winnerId, player1Id, player2Id });
 
       if (![player1Id, player2Id].includes(winnerId)) {
         return next(new Error('Winner must be one of the players'));

@@ -80,6 +80,7 @@ export interface Match {
       player2: { legsWon: number; average: number; checkoutRate: number; dartsThrown: number };
     };
     round: number
+    isKnockout: boolean;
   } | null;
 }
 

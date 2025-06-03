@@ -4,6 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Player, Tournament } from "./TournamentDetailsPage";
 import toast from "react-hot-toast";
+import usePlayerStatsModal from "@/hooks/usePlayerStatsModal";
 
 const playerSchema = z.object({
   playerInput: z.string().min(1, "A játékos neve kötelező"),
@@ -42,6 +43,7 @@ function PlayerManagement({
   tournament,
 }: PlayerManagementProps) {
   const [playerSuggestions, setPlayerSuggestions] = useState<string[]>([]);
+  const { openPlayerStatsModal, PlayerStatsModal } = usePlayerStatsModal();
 
   const playerForm = useForm<PlayerForm>({
     resolver: zodResolver(playerSchema),
@@ -194,14 +196,18 @@ function PlayerManagement({
               } hover:bg-primary/10 transition-colors`}
             >
               <div className="flex flex-col">
-                <span className="text-base font-medium">
-                  {player.name}
-                  {getPlayerRank(player._id) && (
+              <button
+                onClick={() => openPlayerStatsModal(player._id)}
+                className="text-base font-medium btn btn-ghost"
+              >
+                {player.name}
+                {getPlayerRank(player._id) && (
                     <span className="ml-2 text-sm text-primary">
                       ({getPlayerRank(player._id)})
                     </span>
                   )}
-                </span>
+              </button>
+              <PlayerStatsModal />
                 <div className="text-sm">
                   {player.stats && player.stats.oneEightiesCount > 0 && (
                     <span className="text-success mr-2">

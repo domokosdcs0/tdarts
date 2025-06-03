@@ -303,7 +303,6 @@ export async function PATCH(
         const groupMatches = await MatchModel.find({
           tournamentId: match.tournamentId,
           round: groupIndex,
-          status: "finished",
           $or: [
             { player1: { $in: group.players.map((p: any) => p.playerId) } },
             { player2: { $in: group.players.map((p: any) => p.playerId) } },

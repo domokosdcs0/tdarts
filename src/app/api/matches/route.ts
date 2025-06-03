@@ -49,6 +49,7 @@ export async function GET(request: Request) {
           },
         },
         round: match.round,
+        isKnockout: match.isKnockout || false,
       },
     }));
 

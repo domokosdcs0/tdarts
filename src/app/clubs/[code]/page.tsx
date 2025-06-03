@@ -7,6 +7,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import toast from 'react-hot-toast';
 import Link from 'next/link';
+import usePlayerStatsModal from '@/hooks/usePlayerStatsModal';
 
 // Form validation schema
 const formSchema = z.object({
@@ -62,6 +63,7 @@ export default function ClubDetailPage() {
   const [playerInput, setPlayerInput] = useState('');
   const [playerSuggestions, setPlayerSuggestions] = useState<string[]>([]);
   const [addedPlayers, setAddedPlayers] = useState<{ name: string; fromSearch: boolean }[]>([]);
+  const { openPlayerStatsModal, PlayerStatsModal } = usePlayerStatsModal();
 
   const { register, control, handleSubmit, formState: { errors }, reset } = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -298,7 +300,13 @@ export default function ClubDetailPage() {
               <ul className="list-none">
                 {club.players.map(player => (
                   <li key={player._id} className="flex justify-between items-center py-2 border-b border-base-200">
-                    <span className="text-base-content">{player.name}</span>
+                    <button
+                        onClick={() => openPlayerStatsModal(player._id)}
+                        className="btn btn-ghost"
+                      >
+                        {player.name}
+                      </button>
+                      <PlayerStatsModal />
                     {isAuthenticated && (
                       <button
                         className="btn btn-error btn-xs"

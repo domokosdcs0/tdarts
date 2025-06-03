@@ -11,6 +11,8 @@ export const PlayerTournamentHistorySchema = new mongoose.Schema({
     legsPlayed: { type: Number, default: 0 },
     matchesWon: { type: Number, default: 0 },
     matchesPlayed: { type: Number, default: 0 },
+    oneEighties: { type: Number, default: 0 },
+    highestCheckout: { type: Number, default: 0 },
   },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now },
@@ -36,6 +38,8 @@ export interface PlayerTournamentHistory {
     legsPlayed: number;
     matchesWon: number;
     matchesPlayed: number;
+    oneEighties: number
+    highestCheckout: number
   };
   createdAt: Date;
   updatedAt: Date;

@@ -9,6 +9,11 @@ export const PlayerSchema = new mongoose.Schema({
     totalLegsPlayed: { type: Number, default: 0 },
     totalMatchesWon: { type: Number, default: 0 },
     totalMatchesPlayed: { type: Number, default: 0 },
+    totalTournamentsPlayed: { type: Number, default: 0 },
+    totalTournamentsWon: { type: Number, default: 0 },
+    totalOneEighties: { type: Number, default: 0 },
+    totalHighestCheckout: { type: Number, default: 0 },
+    bestPlacement: { type: Number, default: 0 }, // Legjobb helyezés a tornákon
   },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now },
@@ -37,6 +42,11 @@ export interface Player {
     totalLegsPlayed: number;
     totalMatchesWon: number;
     totalMatchesPlayed: number;
+    totalTournamentsPlayed: number;
+    totalTournamentsWon: number;
+    totalOneEighties: number;
+    highestCheckout: number;
+    bestPlacement: number;
   };
   createdAt: Date;
   updatedAt: Date;

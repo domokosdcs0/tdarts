@@ -196,7 +196,7 @@ function GroupSection({ groups, getEliminatedPlayers, matchFilter, setMatchFilte
                         className="btn shadow-md btn-sm w-full flex justify-between items-center"
                         onClick={() => toggleMatches(group._id)}
                       >
-                        <span>Mérfürdőesek</span>
+                        <span>Mérkőzések</span>
                         <svg
                           className={`w-4 h-4 transition-transform ${isMatchesExpanded ? "rotate-180" : ""}`}
                           fill="none"
@@ -240,6 +240,7 @@ function GroupSection({ groups, getEliminatedPlayers, matchFilter, setMatchFilte
                                       <th>Játékosok</th>
                                       <th>Pontozó</th>
                                       <th>Állapot</th>
+                                      <th>Átlag</th>
                                       <th>Eredmény</th>
                                     </tr>
                                   </thead>
@@ -274,6 +275,16 @@ function GroupSection({ groups, getEliminatedPlayers, matchFilter, setMatchFilte
                                                 ? "Befejezve"
                                                 : "-"}
                                             </span>
+                                          </td>
+                                          <td>
+                                            {match.stats && match.stats.player1 && match.stats.player2 ? (
+                                              <span>
+                                                {match.stats.player1.average.toFixed(1)} -{" "}
+                                                {match.stats.player2.average.toFixed(1)}
+                                              </span>
+                                            ) : (
+                                              "-"
+                                            )}
                                           </td>
                                           <td>
                                             {(match.status=== "finished" || match.status=== "ongoing") &&
